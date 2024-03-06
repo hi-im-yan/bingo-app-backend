@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Hello WebSocket</title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
 </head>
@@ -14,47 +14,163 @@
 
     <div class="col-md-12" id="start-section">
         <div class="">
-            <button id="create-room-section-button" class="btn btn-default" type="submit">Create Room</button>
-            <button id="connect-to-room-section-button" class="btn btn-default" type="submit">Connect to Room</button>
+            <button id="create-room-section-button" class="btn btn-primary" type="submit">Create Room</button>
+            <button id="connect-to-room-section-button" class="btn btn-primary" type="submit">Connect to Room</button>
         </div>
     </div>
-    <section class="row" id="room-creator-section">
-<!--        <div class="col-md-6">-->
-<!--            <form class="form-inline" onsubmit="return false">-->
-<!--                <div class="form-group">-->
-<!--                    <label for="form-room-name">Room names</label>-->
-<!--                    <input type="text" id="form-room-name" class="form-control" placeholder="Room name here..">-->
-<!--                </div>-->
-<!--                <div class="form-group">-->
-<!--                    <label for="form-room-description">Room description</label>-->
-<!--                    <input type="text" id="form-room-description" class="form-control" placeholder="Room description here...">-->
-<!--                </div>-->
-<!--                <button id="form-room-submit" class="btn btn-default" type="submit">Send</button>-->
-<!--            </form>-->
-<!--        </div>-->
+    <section class="row" id="room-creator-section" style="display:none">
         <div class="col-md-6">
-            <button id="connect" class="btn btn-default" type="submit">Connect to WS</button>
-            <button id="mockSendDataButton" class="btn btn-default" type="submit">Send Mock Number</button>
+            <form class="form-inline" onsubmit="return false">
+                <div class="form-group">
+                    <label for="form-room-name">Room names</label>
+                    <input type="text" id="form-room-name" class="form-control" placeholder="Room name here..">
+                </div>
+                <div class="form-group">
+                    <label for="form-room-description">Room description</label>
+                    <input type="text" id="form-room-description" class="form-control" placeholder="Room description here...">
+                </div>
+                <button id="form-room-submit" class="btn btn-default" type="submit">Create Room</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="row" id="room-player-section" style="display:none">
+        <div class="col-md-6">
             <form class="form-inline" id="connectForm" onsubmit="return false">
                 <div class="form-group">
                     <label for="roomSessionCode">Room name</label>
                     <input type="text" id="roomSessionCode" class="form-control" placeholder="Room session code...">
                 </div>
-                <button id="subscribeToRoomButton" class="btn btn-default" type="submit">Send</button>
+                <button id="subscribeToRoomButton" class="btn btn-default" type="submit">Connect</button>
             </form>
         </div>
     </section>
     <div class="row">
-        <div class="col-md-12">
-            <table id="conversation" class="table table-striped">
-                <thead>
-                <tr>
-                    <th>Greetings</th>
-                </tr>
-                </thead>
-                <tbody id="greetings">
-                </tbody>
-            </table>
+        <div class="col-md-12" id="player-interface" style="display:none">
+            <h1>Player interface</h1>
+
+        </div>
+        <div class="col-md-12" id="GM-interface" style="display:none">
+            <h1>Game Master interface</h1>
+            <h1 id="inviteCode"></h1>
+            <div class="btn-group" role="group" aria-label="Basic example">
+                <button type="button" class="btn btn-primary" id="bingo-btn-b">B</button>
+                <button type="button" class="btn btn-primary" id="bingo-btn-i">I</button>
+                <button type="button" class="btn btn-primary" id="bingo-btn-n">N</button>
+                <button type="button" class="btn btn-primary" id="bingo-btn-g">G</button>
+                <button type="button" class="btn btn-primary" id="bingo-btn-o">O</button>
+            </div>
+
+            <br> <br>
+            <!-- Bingo - Letter B -->
+            <div id="bingo-numbers-b" style="display:none">
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-01" onclick="selectNumber(1)">01</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-02" onclick="selectNumber(2)">02</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-03" onclick="selectNumber(3)">03</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-04" onclick="selectNumber(4)">04</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-05" onclick="selectNumber(5)">05</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-06" onclick="selectNumber(6)">06</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-07" onclick="selectNumber(7)">07</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-08" onclick="selectNumber(8)">08</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-09" onclick="selectNumber(9)">09</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-10" onclick="selectNumber(10)">10</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-11" onclick="selectNumber(11)">11</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-12" onclick="selectNumber(12)">12</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-13" onclick="selectNumber(13)">13</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-14" onclick="selectNumber(14)">14</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-b-15" onclick="selectNumber(15)">15</button>
+            </div>
+
+            <!-- Bingo - Letter I -->
+            <div id="bingo-numbers-i" style="display:none">
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-16" onclick="selectNumber(16)">16</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-17" onclick="selectNumber(17)">17</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-18" onclick="selectNumber(18)">18</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-19" onclick="selectNumber(19)">19</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-20" onclick="selectNumber(20)">20</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-21" onclick="selectNumber(21)">21</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-22" onclick="selectNumber(22)">22</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-23" onclick="selectNumber(23)">23</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-24" onclick="selectNumber(24)">24</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-25" onclick="selectNumber(25)">25</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-26" onclick="selectNumber(26)">26</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-27" onclick="selectNumber(27)">27</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-28" onclick="selectNumber(28)">28</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-29" onclick="selectNumber(29)">29</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-i-30" onclick="selectNumber(30)">30</button>
+            </div>
+
+            <!-- Bingo - Letter N -->
+            <div id="bingo-numbers-n" style="display:none">
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-31" onclick="selectNumber(31)">31</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-32" onclick="selectNumber(32)">32</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-33" onclick="selectNumber(33)">33</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-34" onclick="selectNumber(34)">34</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-35" onclick="selectNumber(35)">35</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-36" onclick="selectNumber(36)">36</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-37" onclick="selectNumber(37)">37</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-38" onclick="selectNumber(38)">38</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-39" onclick="selectNumber(39)">39</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-40" onclick="selectNumber(40)">40</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-41" onclick="selectNumber(41)">41</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-42" onclick="selectNumber(42)">42</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-43" onclick="selectNumber(43)">43</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-44" onclick="selectNumber(44)">44</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-n-45" onclick="selectNumber(45)">45</button>
+            </div>
+
+            <!-- Bingo - Letter G -->
+            <div id="bingo-numbers-g" style="display:none">
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-46" onclick="selectNumber(46)">46</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-47" onclick="selectNumber(47)">47</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-48" onclick="selectNumber(48)">48</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-49" onclick="selectNumber(49)">49</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-50" onclick="selectNumber(50)">50</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-51" onclick="selectNumber(51)">51</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-52" onclick="selectNumber(52)">52</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-53" onclick="selectNumber(53)">53</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-54" onclick="selectNumber(54)">54</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-55" onclick="selectNumber(55)">55</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-56" onclick="selectNumber(56)">56</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-57" onclick="selectNumber(57)">57</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-58" onclick="selectNumber(58)">58</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-59" onclick="selectNumber(59)">59</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-g-60" onclick="selectNumber(60)">60</button>
+            </div>
+
+            <!-- Bingo - Letter O -->
+            <div id="bingo-numbers-o" style="display:none">
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-61" onclick="selectNumber(61)">61</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-62" onclick="selectNumber(62)">62</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-63" onclick="selectNumber(63)">63</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-64" onclick="selectNumber(64)">64</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-65" onclick="selectNumber(65)">65</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-66" onclick="selectNumber(66)">66</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-67" onclick="selectNumber(67)">67</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-68" onclick="selectNumber(68)">68</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-69" onclick="selectNumber(69)">69</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-70" onclick="selectNumber(70)">70</button>
+                <br>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-71" onclick="selectNumber(71)">71</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-72" onclick="selectNumber(72)">72</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-73" onclick="selectNumber(73)">73</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-74" onclick="selectNumber(74)">74</button>
+                <button type="button" class="btn btn-primary" id="bingo-numbers-o-75" onclick="selectNumber(75)">75</button>
+            </div>
+
+            <br>
+            <button class="btn btn-primary" id="btn-confirmar-numero" disabled="true" onclick="addNumber()">Confirm</button>
+
+            <h1 id="last-number"></h1>
         </div>
     </div>
 </div>

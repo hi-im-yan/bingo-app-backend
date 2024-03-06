@@ -26,7 +26,7 @@ function subscribeToRoom() {
         let parsedMessage = JSON.parse(message.body)
         console.log(parsedMessage)
     });
-
+    localStorage.setItem("sessionCode", roomSessionCode)
 }
 
 function connect() {
@@ -39,17 +39,27 @@ function disconnect() {
     console.log("Disconnected");
 }
 
-function sendMockData() {
-
-                   stompClient.publish({
-                       destination: "/app/add-number",
-                       body:                JSON.stringify({
-                                                "session-code":  "IEEj2H",
-                                                "creator-hash": "03fe0f50-81a9-4965-b918-6e1eab5ce3d2",
-                                                "number": 22
-                                            })
-                   });
+function addNumber() {
+   stompClient.publish({
+       destination: "/app/add-number",
+       body:                JSON.stringify({
+                                "session-code":  localStorage.getItem('sessionCode'),
+                                "creator-hash": localStorage.getItem('creatorHash'),
+                                "number": localStorage.getItem('selectedNumber'),
+                            })
+   });
+   $("#btn-confirmar-numero").prop('disabled', true)
+   $("#btn-confirmar-numero").html(`Confirm`)
+   $("#last-number").html(`Last number: ${localStorage.getItem('selectedNumber')}`)
 }
+
+function selectNumber(number) {
+    localStorage.setItem('selectedNumber', number);
+    $("#btn-confirmar-numero").prop('disabled', false)
+    $("#btn-confirmar-numero").html(`Confirm: ${number}`)
+}
+
+connect()
 $(function () {
     $("#form-room-submit").click( async () => {
         let reqBody = JSON.stringify({
@@ -71,29 +81,114 @@ $(function () {
         })
         .then(data => {
             console.log("Success:", data);
-            localstorage.set("creatorHash", data.creatorHash)
+            localStorage.setItem("creatorHash", data.creatorHash)
+            localStorage.setItem("sessionCode", data.sessionCode)
+            $("#GM-interface").prop("style", "display:true");
+            $("#room-creator-section").prop("style", "display:none");
+            $("#inviteCode").html(`Invite Code: ${data.sessionCode}`)
+
             // Handle the response data as needed
         })
         .catch(error => {
             console.error("Error:", error);
+            alert("Error creating room, try again with another room name.")
             // Handle errors
         })
-        .finally(() => {
-            console.log("Fetch done");
-        });
-
-        console.log("fetch done??")
     });
 
-    $( "#disconnect" ).click(() => disconnect());
-    $( "#send" ).click(() => connect());
 
     $("connectForm").on('submit', (e) => e.preventDefault());
     $( "#connect" ).click(() => connect());
-    $( "#subscribeToRoomButton" ).click(() => subscribeToRoom());
+    $( "#subscribeToRoomButton" ).click(() => {
+        subscribeToRoom()
+        $("#room-player-section").prop("style", "display:none");
+        $("#player-interface").prop("style", "display:true");
+    });
     $( "#mockSendDataButton" ).click(() => sendMockData());
 
 
-    $( "#create-room-section-button" ).click(() => $("#connect-to-room-section-button").prop("disabled", true));
-    $( "#connect-to-room-section-button" ).click(() => $("#create-room-section-button").prop("disabled", true));
+    $( "#create-room-section-button" ).click(() => {
+        $("#connect-to-room-section-button").prop("disabled", true);
+        $("#room-creator-section").prop("style", "display:true");
+    });
+
+    $( "#connect-to-room-section-button" ).click(() => {
+        $("#create-room-section-button").prop("disabled", true);
+        $("#room-player-section").prop("style", "display:true");
+    });
+
+    // Button click event for B
+    $("#bingo-btn-b").click(() => {
+        $("#bingo-btn-b").prop("class", "btn btn-info");
+        $("#bingo-btn-i").prop("class", "btn btn-primary");
+        $("#bingo-btn-n").prop("class", "btn btn-primary");
+        $("#bingo-btn-g").prop("class", "btn btn-primary");
+        $("#bingo-btn-o").prop("class", "btn btn-primary");
+
+        $("#bingo-numbers-b").prop("style", "display:block");
+        $("#bingo-numbers-i").prop("style", "display:none");
+        $("#bingo-numbers-n").prop("style", "display:none");
+        $("#bingo-numbers-g").prop("style", "display:none");
+        $("#bingo-numbers-o").prop("style", "display:none");
+    });
+
+    // Button click event for I
+    $("#bingo-btn-i").click(() => {
+        $("#bingo-btn-b").prop("class", "btn btn-primary");
+        $("#bingo-btn-i").prop("class", "btn btn-info");
+        $("#bingo-btn-n").prop("class", "btn btn-primary");
+        $("#bingo-btn-g").prop("class", "btn btn-primary");
+        $("#bingo-btn-o").prop("class", "btn btn-primary");
+
+        $("#bingo-numbers-b").prop("style", "display:none");
+        $("#bingo-numbers-i").prop("style", "display:block");
+        $("#bingo-numbers-n").prop("style", "display:none");
+        $("#bingo-numbers-g").prop("style", "display:none");
+        $("#bingo-numbers-o").prop("style", "display:none");
+    });
+
+    // Button click event for N
+    $("#bingo-btn-n").click(() => {
+        $("#bingo-btn-b").prop("class", "btn btn-primary");
+        $("#bingo-btn-i").prop("class", "btn btn-primary");
+        $("#bingo-btn-n").prop("class", "btn btn-info");
+        $("#bingo-btn-g").prop("class", "btn btn-primary");
+        $("#bingo-btn-o").prop("class", "btn btn-primary");
+
+        $("#bingo-numbers-b").prop("style", "display:none");
+        $("#bingo-numbers-i").prop("style", "display:none");
+        $("#bingo-numbers-n").prop("style", "display:block");
+        $("#bingo-numbers-g").prop("style", "display:none");
+        $("#bingo-numbers-o").prop("style", "display:none");
+    });
+
+    // Button click event for G
+    $("#bingo-btn-g").click(() => {
+        $("#bingo-btn-b").prop("class", "btn btn-primary");
+        $("#bingo-btn-i").prop("class", "btn btn-primary");
+        $("#bingo-btn-n").prop("class", "btn btn-primary");
+        $("#bingo-btn-g").prop("class", "btn btn-info");
+        $("#bingo-btn-o").prop("class", "btn btn-primary");
+
+        $("#bingo-numbers-b").prop("style", "display:none");
+        $("#bingo-numbers-i").prop("style", "display:none");
+        $("#bingo-numbers-n").prop("style", "display:none");
+        $("#bingo-numbers-g").prop("style", "display:block");
+        $("#bingo-numbers-o").prop("style", "display:none");
+    });
+
+    // Button click event for O
+    $("#bingo-btn-o").click(() => {
+        $("#bingo-btn-b").prop("class", "btn btn-primary");
+        $("#bingo-btn-i").prop("class", "btn btn-primary");
+        $("#bingo-btn-n").prop("class", "btn btn-primary");
+        $("#bingo-btn-g").prop("class", "btn btn-primary");
+        $("#bingo-btn-o").prop("class", "btn btn-info");
+
+        $("#bingo-numbers-b").prop("style", "display:none");
+        $("#bingo-numbers-i").prop("style", "display:none");
+        $("#bingo-numbers-n").prop("style", "display:none");
+        $("#bingo-numbers-g").prop("style", "display:none");
+        $("#bingo-numbers-o").prop("style", "display:block");
+    });
 });
