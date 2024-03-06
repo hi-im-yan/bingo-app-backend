@@ -23,7 +23,10 @@ function subscribeToRoom() {
     setTimeout(() => {}, 5000)
     stompClient.subscribe('/room/' + roomSessionCode, (message) => {
         console.log(message.body)
-        let parsedMessage = JSON.parse(message.body)
+        let drawnNumbers = JSON.parse(message.body).drawnNumbers
+        let drawnNumbersList = drawnNumbers.split(",");
+        $("#drawn-number").html(`Drawn Number: ${drawnNumbersList[drawnNumbersList.length - 1]}`)
+        $("#all-drawn-numbers").html(`History: ${drawnNumbers}`)
         console.log(parsedMessage)
     });
     localStorage.setItem("sessionCode", roomSessionCode)
