@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    container_name: bingo-database
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bingo
+
+  your-app:
+    build: .  # Build the image from the current directory (where Dockerfile is)
+    ports:
+      - "8080:8080"  # Adjust port based on your application
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/bingo  # Replace with your actual values
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      - db  # Wait for db service to be ready before starting your app
+
+volumes:
+  postgres_data:
