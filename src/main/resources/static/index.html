@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello WebSocket</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+</head>
+<body>
+<noscript><h2 style="color: #ff0000">Seems ysour browser doesn't support Javascript! Websocket relies on Javascript being
+    enabled. Please enable
+    Javascript and reload this page!</h2></noscript>
+<div id="main-content" class="container">
+
+    <div class="col-md-12" id="start-section">
+        <div class="">
+            <button id="create-room-section-button" class="btn btn-default" type="submit">Create Room</button>
+            <button id="connect-to-room-section-button" class="btn btn-default" type="submit">Connect to Room</button>
+        </div>
+    </div>
+    <section class="row" id="room-creator-section">
+<!--        <div class="col-md-6">-->
+<!--            <form class="form-inline" onsubmit="return false">-->
+<!--                <div class="form-group">-->
+<!--                    <label for="form-room-name">Room names</label>-->
+<!--                    <input type="text" id="form-room-name" class="form-control" placeholder="Room name here..">-->
+<!--                </div>-->
+<!--                <div class="form-group">-->
+<!--                    <label for="form-room-description">Room description</label>-->
+<!--                    <input type="text" id="form-room-description" class="form-control" placeholder="Room description here...">-->
+<!--                </div>-->
+<!--                <button id="form-room-submit" class="btn btn-default" type="submit">Send</button>-->
+<!--            </form>-->
+<!--        </div>-->
+        <div class="col-md-6">
+            <button id="connect" class="btn btn-default" type="submit">Connect to WS</button>
+            <button id="mockSendDataButton" class="btn btn-default" type="submit">Send Mock Number</button>
+            <form class="form-inline" id="connectForm" onsubmit="return false">
+                <div class="form-group">
+                    <label for="roomSessionCode">Room name</label>
+                    <input type="text" id="roomSessionCode" class="form-control" placeholder="Room session code...">
+                </div>
+                <button id="subscribeToRoomButton" class="btn btn-default" type="submit">Send</button>
+            </form>
+        </div>
+    </section>
+    <div class="row">
+        <div class="col-md-12">
+            <table id="conversation" class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Greetings</th>
+                </tr>
+                </thead>
+                <tbody id="greetings">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>

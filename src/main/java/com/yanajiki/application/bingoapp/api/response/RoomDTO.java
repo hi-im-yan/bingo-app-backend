@@ -5,10 +5,12 @@ import com.yanajiki.application.bingoapp.database.RoomEntity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.io.Serializable;
+
 @Getter
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class RoomDTO {
+public class RoomDTO implements Serializable {
 
     private final String name;
     private final String description;

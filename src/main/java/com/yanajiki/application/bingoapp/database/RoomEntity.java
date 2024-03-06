@@ -7,8 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "room")
@@ -39,7 +38,7 @@ public class RoomEntity {
     private String creatorHash;
 
     @Column(name = "drawn_numbers")
-    private String drawnNumbers;
+    private String drawnNumbers = "";
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
@@ -61,6 +60,12 @@ public class RoomEntity {
         roomEntity.setDrawnNumbers("");
         roomEntity.setSessionCode(newSessionCode());
         return roomEntity;
+    }
+
+    public void setDrawnNumbers(String drawnNumber) {
+        ArrayList<String> list = new ArrayList<>(Arrays.asList(this.drawnNumbers.split(",")));
+        list.add(drawnNumber);
+        this.drawnNumbers = String.join(",", list);
     }
 
     private static String newSessionCode() {

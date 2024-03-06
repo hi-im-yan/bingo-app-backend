@@ -25,6 +25,7 @@ public class RoomController {
 
     @PostMapping
     public RoomDTO create(@RequestBody CreateRoomForm input) {
+        System.out.println("Creating room..");
         repository.findByName(input.getName())
                 .ifPresent(entity -> {
                     throw new ConflictException("Room already exists.");
