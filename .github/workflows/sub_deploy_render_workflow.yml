@@ -1,0 +1,15 @@
+name: Deploy on Render.com
+
+on:
+  workflow_call:
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Call deploy hook
+        run: |
+          curl "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

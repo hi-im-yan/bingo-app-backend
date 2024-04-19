@@ -1,0 +1,26 @@
+name: Deploy Workflow
+
+on:
+  push:
+    branches: [ 'develop', 'main' ]
+
+
+jobs:
+
+  test_workflow:
+    uses: ./.github/workflows/sub_test_workflow.yml
+    secrets: inherit
+
+  artifact_workflow:
+    needs: test_workflow
+    uses: ./.github/workflows/sub_artifact_workflow.yml
+    secrets: inherit
+
+  docker_workflow:
+    needs: artifact_workflow
+    uses: ./.github/workflows/sub_docker_workflow.yml
+    secrets: inherit
+
+  deploy_on_render:
+    uses: ./.github/workflows/sub_deploy_render_workflow.yml
+    secrets: inherit
