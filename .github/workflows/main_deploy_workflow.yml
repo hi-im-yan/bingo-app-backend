@@ -22,5 +22,6 @@ jobs:
     secrets: inherit
 
   deploy_on_render:
+    needs: docker_workflow
     uses: ./.github/workflows/sub_deploy_render_workflow.yml
     secrets: inherit

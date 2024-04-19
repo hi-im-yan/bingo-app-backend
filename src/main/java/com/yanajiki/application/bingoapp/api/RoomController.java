@@ -19,6 +19,7 @@ import org.springframework.web.context.request.WebRequest;
 @RequestMapping("/api/v1/room")
 @AllArgsConstructor
 @Slf4j
+@CrossOrigin(origins = "*")
 public class RoomController {
 
     private final RoomRepository repository;
