@@ -1,8 +1,9 @@
 version: '3.8'
 
 services:
+
   db:
-    image: postgres:latest
+    image: postgres:16-alpine
     container_name: bingo-database
     ports:
       - "5432:5432"
@@ -10,17 +11,26 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: bingo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bingo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   your-app:
-    build: .  # Build the image from the current directory (where Dockerfile is)
+    build: .
     ports:
-      - "8080:8080"  # Adjust port based on your application
+      - "8080:8080"
     environment:
-      DB_URL: jdbc:postgresql://db:5432/bingo  # Replace with your actual values
+      DB_URL: jdbc:postgresql://db:5432/bingo
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
     depends_on:
-      - db  # Wait for db service to be ready before starting your app
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

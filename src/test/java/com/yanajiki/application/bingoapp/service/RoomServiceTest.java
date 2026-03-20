@@ -1,0 +1,390 @@
+package com.yanajiki.application.bingoapp.service;
+
+import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
+import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.database.RoomEntity;
+import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.ConflictException;
+import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
+import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for {@link RoomService}.
+ * <p>
+ * Uses Mockito to isolate the service from the repository and the number-label mapper,
+ * verifying all business-logic branches: room creation, lookup (creator vs player view),
+ * deletion, and number drawing (valid, not found, out-of-range, duplicate).
+ * </p>
+ */
+@ExtendWith(MockitoExtension.class)
+class RoomServiceTest {
+
+	@Mock
+	private RoomRepository repository;
+
+	/**
+	 * Mocked mapper — returns a predictable label format and the standard 1–75 range,
+	 * so service tests are independent of the real {@code StandardBingoMapper} implementation.
+	 */
+	@Mock
+	private NumberLabelMapper numberLabelMapper;
+
+	@InjectMocks
+	private RoomService roomService;
+
+	// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+	/**
+	 * Builds a {@link CreateRoomForm} with the given name and description.
+	 */
+	private CreateRoomForm buildForm(String name, String description) {
+		CreateRoomForm form = new CreateRoomForm();
+		form.setName(name);
+		form.setDescription(description);
+		return form;
+	}
+
+	/**
+	 * Stubs the mapper to behave like standard bingo (range 1–75, label "X-{n}").
+	 */
+	private void stubStandardMapper() {
+		when(numberLabelMapper.getMinNumber()).thenReturn(1);
+		when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+		when(numberLabelMapper.toLabel(anyInt())).thenAnswer(inv -> "X-" + inv.getArgument(0));
+	}
+
+	// ─── createRoom ──────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("createRoom")
+	class CreateRoom {
+
+		/**
+		 * A valid creation form with a unique name should persist the entity and return a creator-view DTO
+		 * that includes the {@code creatorHash} and both drawn fields (empty).
+		 */
+		@Test
+		@DisplayName("success — saves entity and returns creator DTO with creatorHash")
+		void success_savesEntityAndReturnsCreatorDto() {
+			// given
+			CreateRoomForm form = buildForm("Friday Night Bingo", "Weekly game");
+			RoomEntity saved = RoomEntity.createEntityObject("Friday Night Bingo", "Weekly game");
+
+			when(repository.findByName("Friday Night Bingo")).thenReturn(Optional.empty());
+			when(repository.save(any(RoomEntity.class))).thenReturn(saved);
+			// no toLabel stub needed — saved entity has no drawn numbers, labels list will be empty
+
+			// when
+			RoomDTO result = roomService.createRoom(form);
+
+			// then
+			assertThat(result.name()).isEqualTo("Friday Night Bingo");
+			assertThat(result.description()).isEqualTo("Weekly game");
+			assertThat(result.sessionCode()).isNotBlank();
+			assertThat(result.creatorHash()).isNotBlank();
+			assertThat(result.drawnNumbers()).isEmpty();
+			assertThat(result.drawnLabels()).isEmpty();
+
+			verify(repository).findByName("Friday Night Bingo");
+			verify(repository).save(any(RoomEntity.class));
+		}
+
+		/**
+		 * Creating a room whose name is already taken must throw {@link ConflictException}
+		 * and never attempt a save.
+		 */
+		@Test
+		@DisplayName("conflict — name already exists, throws ConflictException")
+		void conflict_nameAlreadyExists_throwsConflictException() {
+			// given
+			CreateRoomForm form = buildForm("Existing Room", "desc");
+			RoomEntity existing = RoomEntity.createEntityObject("Existing Room", null);
+
+			when(repository.findByName("Existing Room")).thenReturn(Optional.of(existing));
+
+			// when / then
+			assertThatThrownBy(() -> roomService.createRoom(form))
+				.isInstanceOf(ConflictException.class)
+				.hasMessageContaining("Room already exists");
+
+			verify(repository, never()).save(any());
+		}
+	}
+
+	// ─── findRoomBySessionCode ───────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("findRoomBySessionCode")
+	class FindRoomBySessionCode {
+
+		/**
+		 * A valid creator hash triggers a lookup by both session code and hash,
+		 * returning the creator view with {@code creatorHash} populated.
+		 */
+		@Test
+		@DisplayName("with valid creatorHash — returns creator view including hash")
+		void withCreatorHash_returnsCreatorView() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Creator Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			// no toLabel stub — entity has no drawn numbers, so toLabel is never invoked
+
+			// when
+			RoomDTO result = roomService.findRoomBySessionCode(sessionCode, creatorHash);
+
+			// then
+			assertThat(result.creatorHash()).isEqualTo(creatorHash);
+			verify(repository).findBySessionCodeAndCreatorHash(sessionCode, creatorHash);
+			verify(repository, never()).findBySessionCode(any());
+		}
+
+		/**
+		 * A null creator hash triggers the player-view lookup (session code only),
+		 * returning a DTO with {@code creatorHash} set to {@code null}.
+		 */
+		@Test
+		@DisplayName("without creatorHash (null) — returns player view with null hash")
+		void withoutCreatorHash_null_returnsPlayerView() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Player Room", null);
+			String sessionCode = entity.getSessionCode();
+
+			when(repository.findBySessionCode(sessionCode)).thenReturn(Optional.of(entity));
+			// no toLabel stub — entity has no drawn numbers, so toLabel is never invoked
+
+			// when
+			RoomDTO result = roomService.findRoomBySessionCode(sessionCode, null);
+
+			// then
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).findBySessionCode(sessionCode);
+			verify(repository, never()).findBySessionCodeAndCreatorHash(anyString(), anyString());
+		}
+
+		/**
+		 * A blank (whitespace-only) creator hash is treated as absent — falls back to player view.
+		 */
+		@Test
+		@DisplayName("without creatorHash (blank string) — returns player view with null hash")
+		void withBlankCreatorHash_returnsPlayerView() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Blank Hash Room", null);
+			String sessionCode = entity.getSessionCode();
+
+			when(repository.findBySessionCode(sessionCode)).thenReturn(Optional.of(entity));
+			// no toLabel stub — entity has no drawn numbers, so toLabel is never invoked
+
+			// when
+			RoomDTO result = roomService.findRoomBySessionCode(sessionCode, "   ");
+
+			// then
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).findBySessionCode(sessionCode);
+			verify(repository, never()).findBySessionCodeAndCreatorHash(anyString(), anyString());
+		}
+
+		/**
+		 * A session code that does not exist in the repository must throw {@link RoomNotFoundException}.
+		 */
+		@Test
+		@DisplayName("room not found — throws RoomNotFoundException")
+		void roomNotFound_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCode("GHOST1")).thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.findRoomBySessionCode("GHOST1", null))
+				.isInstanceOf(RoomNotFoundException.class);
+		}
+	}
+
+	// ─── deleteRoom ──────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("deleteRoom")
+	class DeleteRoom {
+
+		/**
+		 * Deleting with matching session code and creator hash must invoke {@code repository.delete}.
+		 */
+		@Test
+		@DisplayName("success — finds entity and deletes it")
+		void success_findsAndDeletes() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Room To Delete", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+
+			// when
+			roomService.deleteRoom(sessionCode, creatorHash);
+
+			// then
+			verify(repository).delete(entity);
+		}
+
+		/**
+		 * Deleting a room that cannot be found (wrong code or wrong hash)
+		 * must throw {@link RoomNotFoundException} and never call delete.
+		 */
+		@Test
+		@DisplayName("room not found — throws RoomNotFoundException")
+		void roomNotFound_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST2", "wrong-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.deleteRoom("GHOST2", "wrong-hash"))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).delete(any());
+		}
+	}
+
+	// ─── drawNumber ──────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("drawNumber")
+	class DrawNumber {
+
+		/**
+		 * Drawing a valid number must persist the entity and return the player view (no creatorHash)
+		 * with both {@code drawnNumbers} and {@code drawnLabels} populated.
+		 */
+		@Test
+		@DisplayName("success — number added, entity saved, player DTO returned with labels")
+		void success_addsNumberAndReturnsPlayerDto() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Draw Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+			stubStandardMapper();
+
+			// when
+			RoomDTO result = roomService.drawNumber(sessionCode, creatorHash, 42);
+
+			// then
+			assertThat(result.drawnNumbers()).containsExactly(42);
+			assertThat(result.drawnLabels()).containsExactly("X-42");
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * Drawing a number in a non-existent room must throw {@link RoomNotFoundException}
+		 * and never attempt a save.
+		 */
+		@Test
+		@DisplayName("room not found — throws RoomNotFoundException")
+		void roomNotFound_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST3", "no-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawNumber("GHOST3", "no-hash", 10))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Drawing 0 (below the 1–75 bingo range) must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("invalid number (0) — throws IllegalArgumentException")
+		void invalidNumber_zero_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Range Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 0))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("between 1 and 75");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Drawing 76 (above the 1–75 bingo range) must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("invalid number (76) — throws IllegalArgumentException")
+		void invalidNumber_aboveMax_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Range Room 2", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 76))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("between 1 and 75");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Drawing a number that has already been drawn must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("duplicate number — throws IllegalArgumentException")
+		void duplicateNumber_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Duplicate Draw Room", null);
+			entity.addDrawnNumber(7);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 7))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("already been drawn");
+
+			verify(repository, never()).save(any());
+		}
+	}
+}
