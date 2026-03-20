@@ -1,102 +1,110 @@
-# Bingo App Backend — v2 Refactor
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
+
 Bingo room management API with real-time number drawing via WebSocket.
-Spring Boot + PostgreSQL, layered architecture (controller/service/repository).
+Rooms are created via REST, numbers are drawn and broadcast in real-time over STOMP WebSocket.
 
 ## Stack
-- **Java 21**, **Spring Boot 3.4.x** (latest stable)
-- **Maven**, **Lombok**, **PostgreSQL**
+
+- **Java 21**, **Spring Boot 3.4.4**, **Maven**
+- **Lombok**, **PostgreSQL** (prod), **H2** (dev/test)
 - **WebSocket (STOMP)** for real-time number broadcasting
-- **SpringDoc OpenAPI** for API docs
-- **JUnit 5 + Mockito** for unit tests, **RestAssured** for integration tests
-- **JaCoCo** for coverage (minimum 80%)
-- **Docker Compose** for local dev
+- **SpringDoc OpenAPI** for API docs (Swagger UI at `/swagger-ui.html`)
+- **JUnit 5 + Mockito** (unit), **RestAssured** (integration), **JaCoCo** (80% min coverage)
+
+## Build & Test Commands
+
+```bash
+mvn clean compile              # Compile
+mvn clean test                 # Run all tests (unit + integration)
+mvn clean package              # Build JAR (includes tests)
+mvn spring-boot:run            # Run locally (dev profile, H2 in-memory)
+mvn test -Dtest=RoomServiceTest                    # Single test class
+mvn test -Dtest=RoomServiceTest#shouldCreateRoom   # Single test method
+```
+
+If `mvn` is not in PATH, install via SDKMAN (`sdk install maven`). Same for JDK 21.
+
+## Docker
+
+```bash
+docker-compose up                                    # Postgres only (dev)
+docker-compose -f docker-compose-app-bd.yml up       # App + Postgres
+```
 
 ## Architecture
-Layered: `controller → service → repository`
-- Controllers handle HTTP/WebSocket mapping and validation
-- Services contain business logic
-- Repositories handle persistence
-- Global exception handler via `@RestControllerAdvice`
-- Records for DTOs
-- Input validation with Bean Validation annotations
+
+Layered: `controller -> service -> repository`
+
+```
+com.yanajiki.application.bingoapp/
+  api/            # REST controllers, forms (CreateRoomForm), responses (RoomDTO, ApiResponse)
+  service/        # Business logic (RoomService) — all logic lives here
+  database/       # JPA entity (RoomEntity) + Spring Data repository
+  exception/      # Custom exceptions + GlobalExceptionHandler (@RestControllerAdvice)
+  websocket/      # STOMP WebSocket controller + config
+  config/         # CORS config, OpenAPI config
+  game/           # NumberLabelMapper interface + StandardBingoMapper (75-ball bingo rules)
+```
+
+### Key Design Decisions
+
+- **Controllers are thin** — they delegate everything to `RoomService`. No business logic in controllers.
+- **Game abstraction**: `NumberLabelMapper` interface defines valid number ranges and label format (B/I/N/G/O columns). `StandardBingoMapper` implements 75-ball bingo. This allows future variants (e.g., 90-ball).
+- **Drawn numbers** stored via `@ElementCollection` (separate `room_drawn_numbers` table), not CSV.
+- **Creator identity**: `creatorHash` (UUID) passed in `X-Creator-Hash` header for privileged operations (draw, delete). `sessionCode` (6-char alphanumeric via `SecureRandom`) is the public room identifier.
+- **Two DTO views**: `RoomDTO.fromEntityToCreator()` includes creatorHash; `RoomDTO.fromEntityToPlayer()` hides it via `@JsonInclude(NON_NULL)`.
+
+### API Endpoints
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/room` | Create room | None |
+| GET | `/api/v1/room/{session-code}` | Get room | `X-Creator-Hash` header (optional, determines view) |
+| DELETE | `/api/v1/room/{session-code}` | Delete room | `X-Creator-Hash` header (required) |
+| WS | `/bingo-connect` → `/app/add-number` | Draw number (broadcasts to `/room/{sessionCode}`) | creatorHash in payload |
+
+### Exception Handling
+
+Centralized in `GlobalExceptionHandler`:
+- `ConflictException` -> 409 (duplicate room name)
+- `RoomNotFoundException` -> 404
+- `MethodArgumentNotValidException` -> 400 (validation errors)
+- `IllegalArgumentException` -> 400 (business rule violation)
+- Generic `Exception` -> 500 (logged at ERROR)
+
+## Spring Profiles
+
+- **dev** (default): H2 in-memory, permissive CORS (`*`), H2 console at `/h2-console`
+- **prod**: PostgreSQL (env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`), strict CORS, `ddl-auto=validate`
+
+## Testing Patterns
+
+- **Unit tests** (`RoomServiceTest`): Mockito mocks for repository/mapper, `@Nested` + `@DisplayName` organization
+- **Integration tests** (`RoomControllerIntegrationTest`): RestAssured on random port with H2, BDD given/when/then style
+- **Entity tests** (`RoomEntityTest`): Factory method and append behavior
+- Tests use dev profile (H2) by default
+
+## Git Workflow
+
+- Branch `v2` for current development; merge to `main` when validated
+- Conventional commits format
+- Feature sub-branches off `v2` if needed
+
+## CI/CD
+
+GitHub Actions workflow triggered on PR to `develop` or `main`:
+1. Test (`mvn clean test` on JDK 21)
+2. Build artifact (`mvn clean package`)
+3. Docker build + push
 
 ## Team Structure (Standard)
 
-| Role | Model | Responsibility |
-|------|-------|---------------|
-| Orchestrator | Sonnet | Manages issues, delegates, reviews output, git workflow |
-| Implementer | Sonnet | Writes tests and implementation (TDD in single agent) |
-| Explorer | Haiku | Quick codebase searches and lookups |
-
-## Git Workflow
-- Branch: `v2` (all refactor work here)
-- Conventional commits
-- Feature sub-branches off `v2` if needed, otherwise commit directly to `v2`
-- Merge to `main` only after full refactor is validated
-
-## Refactor Issues
-
-### Issue 1: Upgrade pom.xml
-- Java 17 → 21
-- Spring Boot 3.2.3 → 3.4.x (latest stable)
-- Remove duplicate websocket dependency
-- Update commons-lang3 to latest
-- Add: springdoc-openapi, jacoco-maven-plugin, restassured, h2 (test scope)
-- Update Dockerfile to JDK 21
-
-### Issue 2: Introduce service layer
-- Create `RoomService` with all business logic extracted from controllers
-- Controllers become thin — delegate to service
-- WebSocketController delegates to service too
-
-### Issue 3: Global exception handler
-- Create `@RestControllerAdvice` class
-- Handle: ConflictException (409), RoomNotFoundException (404), MethodArgumentNotValidException (400), generic Exception (500)
-- Remove exception handlers from RoomController
-- Add `@ResponseStatus` to custom exceptions
-
-### Issue 4: Fix data model
-- Fix RoomRepository generic type (String → Long)
-- Replace drawnNumbers CSV string with `@ElementCollection` or JSON column
-- Use `SecureRandom` for session code generation
-- Remove dead password field
-- Validate drawn numbers (1-75 range, no duplicates)
-
-### Issue 5: Modernize DTOs and forms
-- Convert ApiResponse to record
-- Convert RoomDTO to record
-- Add Bean Validation to CreateRoomForm (@NotBlank, @Size, etc.)
-- Add Bean Validation to AddNumberForm
-- Move creatorHash from URL path to request header
-
-### Issue 6: Clean up code
-- Delete RoomMapper.java (dead code)
-- Replace System.out.println with SLF4J logger
-- Add Javadoc to all classes and public methods
-- Rename WebSocketController.greeting() to meaningful name
-
-### Issue 7: Spring profiles and configuration
-- Create application-dev.properties (H2)
-- Create application-prod.properties (PostgreSQL)
-- Clean up application.properties as base config
-- Tighten CORS (configurable origins per profile)
-- Add room TTL / expiration (optional)
-
-### Issue 8: Docker updates
-- Update Dockerfile to JDK 21
-- Pin PostgreSQL image version
-- Add volume persistence to dev docker-compose
-- Add health checks
-
-### Issue 9: Tests (TDD)
-- Unit tests for RoomService (Mockito)
-- Integration tests for RoomController (RestAssured)
-- WebSocket integration tests
-- Target: 80%+ coverage (JaCoCo)
-
-### Issue 10: API documentation
-- Add SpringDoc OpenAPI dependency
-- Annotate controllers with @Operation, @ApiResponse, @Tag
-- Swagger UI available at /swagger-ui.html
+| Role | Model | Tools & Skills | Responsibility |
+|------|-------|----------------|---------------|
+| Orchestrator | Sonnet | /new-feature, /status, gh CLI, TaskCreate/TaskUpdate | Manages issues, delegates, reviews output, git workflow |
+| Implementer | Sonnet | Read, Edit, Write, Grep, Glob, Bash, /review (self-review) | Writes tests and implementation (TDD in single agent). Follow conventions above |
+| Explorer | Haiku | Read, Glob, Grep | Quick codebase searches and lookups. No editing |

@@ -3,6 +3,7 @@ package com.yanajiki.application.bingoapp.api;
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
 import com.yanajiki.application.bingoapp.api.response.ApiResponse;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.service.QrCodeService;
 import com.yanajiki.application.bingoapp.service.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RoomController {
 
 	private final RoomService roomService;
+	private final QrCodeService qrCodeService;
 
 	/**
 	 * Creates a new bingo room.
@@ -143,6 +147,44 @@ public class RoomController {
 		@Parameter(description = "Creator hash for authentication; must match the hash assigned at room creation", required = true)
 		@RequestHeader("X-Creator-Hash") String creatorHash) {
 		roomService.deleteRoom(sessionCode, creatorHash);
+	}
+
+	/**
+	 * Returns a QR code PNG image encoding the join URL for the given room.
+	 * <p>
+	 * No authentication is required — anyone who has the session code can
+	 * retrieve the QR code. Returns 404 if the room does not exist.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @return a {@link ResponseEntity} containing the PNG image bytes with content-type {@code image/png}
+	 */
+	@Operation(
+		summary = "Get QR code for a bingo room",
+		description = "Returns a 250x250 PNG QR code that encodes the join URL for the given room. "
+			+ "No authentication required. Returns 404 if the room does not exist."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "QR code PNG image",
+			content = @Content(mediaType = "image/png")
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "404",
+			description = "Room not found for the given session code",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+		)
+	})
+	@GetMapping(value = "/{session-code}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
+	public ResponseEntity<byte[]> getQrCode(
+		@Parameter(description = "Public session code of the room", required = true)
+		@PathVariable("session-code") String sessionCode) {
+		roomService.findRoomBySessionCode(sessionCode, null);
+		byte[] imageBytes = qrCodeService.generateQrCodeForRoom(sessionCode);
+		return ResponseEntity.ok()
+			.contentType(MediaType.IMAGE_PNG)
+			.body(imageBytes);
 	}
 
 }
