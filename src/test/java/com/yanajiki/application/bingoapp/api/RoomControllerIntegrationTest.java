@@ -257,4 +257,50 @@ class RoomControllerIntegrationTest {
 			.body("status", equalTo(404))
 			.body("message", notNullValue());
 	}
+
+	// ─── GET /api/v1/room/{session-code}/qrcode ──────────────────────────────
+
+	/**
+	 * Requesting the QR code for an existing room returns HTTP 200
+	 * with content-type {@code image/png}.
+	 */
+	@Test
+	void shouldReturnQrCodePngForExistingRoom() {
+		// Arrange: create a room and capture its sessionCode
+		String sessionCode = given()
+			.contentType(ContentType.JSON)
+			.body("""
+				{
+					"name": "QR Code Room"
+				}
+				""")
+		.when()
+			.post("/api/v1/room")
+		.then()
+			.statusCode(200)
+			.extract()
+			.path("sessionCode");
+
+		// Act & Assert: QR code endpoint returns a PNG image
+		given()
+		.when()
+			.get("/api/v1/room/{sessionCode}/qrcode", sessionCode)
+		.then()
+			.statusCode(200)
+			.contentType("image/png");
+	}
+
+	/**
+	 * Requesting the QR code for a session code that does not exist returns HTTP 404 NOT FOUND.
+	 */
+	@Test
+	void shouldReturn404WhenQrCodeRequestedForNonExistentRoom() {
+		given()
+		.when()
+			.get("/api/v1/room/{sessionCode}/qrcode", "INVALID")
+		.then()
+			.statusCode(404)
+			.body("status", equalTo(404))
+			.body("message", notNullValue());
+	}
 }
