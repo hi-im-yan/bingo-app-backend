@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface RoomRepository extends CrudRepository<RoomEntity, String> {
+public interface RoomRepository extends CrudRepository<RoomEntity, Long> {
     Optional<RoomEntity> findBySessionCode(String value);
 
     Optional<RoomEntity> findByName(String value);
