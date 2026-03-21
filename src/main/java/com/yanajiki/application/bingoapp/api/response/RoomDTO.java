@@ -2,6 +2,7 @@ package com.yanajiki.application.bingoapp.api.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
+import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
 
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.List;
  * @param creatorHash  the creator's authentication token; {@code null} in player view
  * @param drawnNumbers the list of bingo numbers drawn so far in this room (raw integers)
  * @param drawnLabels  the list of display labels for drawn numbers (e.g., {@code "N-42"})
+ * @param drawMode     the draw mode for the room ({@link DrawMode#MANUAL} or {@link DrawMode#AUTOMATIC})
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RoomDTO(
@@ -34,7 +36,8 @@ public record RoomDTO(
 	String sessionCode,
 	String creatorHash,
 	List<Integer> drawnNumbers,
-	List<String> drawnLabels
+	List<String> drawnLabels,
+	DrawMode drawMode
 ) {
 
 	/**
@@ -43,7 +46,7 @@ public record RoomDTO(
 	 *
 	 * @param entity the persisted room entity
 	 * @param mapper the {@link NumberLabelMapper} used to produce display labels for drawn numbers
-	 * @return a {@link RoomDTO} with all fields populated, including {@code creatorHash}
+	 * @return a {@link RoomDTO} with all fields populated, including {@code creatorHash} and {@code drawMode}
 	 */
 	public static RoomDTO fromEntityToCreator(RoomEntity entity, NumberLabelMapper mapper) {
 		List<Integer> numbers = entity.getDrawnNumbers();
@@ -53,7 +56,8 @@ public record RoomDTO(
 			entity.getSessionCode(),
 			entity.getCreatorHash(),
 			numbers,
-			toLabels(numbers, mapper)
+			toLabels(numbers, mapper),
+			entity.getDrawMode()
 		);
 	}
 
@@ -63,7 +67,7 @@ public record RoomDTO(
 	 *
 	 * @param entity the persisted room entity
 	 * @param mapper the {@link NumberLabelMapper} used to produce display labels for drawn numbers
-	 * @return a {@link RoomDTO} with {@code creatorHash} set to {@code null}
+	 * @return a {@link RoomDTO} with {@code creatorHash} set to {@code null} and {@code drawMode} populated
 	 */
 	public static RoomDTO fromEntityToPlayer(RoomEntity entity, NumberLabelMapper mapper) {
 		List<Integer> numbers = entity.getDrawnNumbers();
@@ -73,7 +77,8 @@ public record RoomDTO(
 			entity.getSessionCode(),
 			null,
 			numbers,
-			toLabels(numbers, mapper)
+			toLabels(numbers, mapper),
+			entity.getDrawMode()
 		);
 	}
 

@@ -6,6 +6,8 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,7 +48,7 @@ class RoomControllerIntegrationTest {
 	// ─── POST /api/v1/room ──────────────────────────────────────────────────────
 
 	/**
-	 * A valid creation request returns HTTP 200 with a populated sessionCode and creatorHash.
+	 * A valid creation request without explicit drawMode returns HTTP 200 with drawMode defaulting to MANUAL.
 	 */
 	@Test
 	void shouldCreateRoomSuccessfully() {
@@ -68,7 +70,32 @@ class RoomControllerIntegrationTest {
 			.body("description", equalTo("Weekly bingo session"))
 			.body("sessionCode", notNullValue())
 			.body("sessionCode", hasLength(6))
-			.body("creatorHash", notNullValue());
+			.body("creatorHash", notNullValue())
+			.body("drawMode", equalTo("MANUAL"));
+	}
+
+	/**
+	 * A creation request with explicit AUTOMATIC drawMode returns HTTP 200 with drawMode set to AUTOMATIC.
+	 */
+	@Test
+	void shouldCreateRoomWithAutomaticDrawMode() {
+		String requestBody = """
+			{
+				"name": "Auto Draw Night",
+				"description": "Server picks the numbers",
+				"drawMode": "AUTOMATIC"
+			}
+			""";
+
+		given()
+			.contentType(ContentType.JSON)
+			.body(requestBody)
+		.when()
+			.post("/api/v1/room")
+		.then()
+			.statusCode(200)
+			.body("name", equalTo("Auto Draw Night"))
+			.body("drawMode", equalTo("AUTOMATIC"));
 	}
 
 	/**
@@ -302,5 +329,137 @@ class RoomControllerIntegrationTest {
 			.statusCode(404)
 			.body("status", equalTo(404))
 			.body("message", notNullValue());
+	}
+
+	// ─── Draw Mode ──────────────────────────────────────────────────────────────
+
+	/**
+	 * Integration tests verifying automatic draw mode behaviour at the API level.
+	 * <p>
+	 * Covers room creation with {@code AUTOMATIC} mode, the default {@code MANUAL} fallback,
+	 * and that {@code drawMode} is returned in both creator and player views of GET room.
+	 * </p>
+	 */
+	@Nested
+	@DisplayName("Automatic Draw Mode")
+	class AutomaticDrawMode {
+
+		/**
+		 * A creation request that explicitly sets {@code drawMode} to {@code AUTOMATIC}
+		 * returns HTTP 200 and the response contains {@code drawMode: "AUTOMATIC"}.
+		 */
+		@Test
+		@DisplayName("should create room with AUTOMATIC draw mode")
+		void shouldCreateRoomWithAutomaticDrawMode() {
+			given()
+				.contentType(ContentType.JSON)
+				.body("""
+					{
+						"name": "Auto Draw Room",
+						"description": "Server picks the numbers",
+						"drawMode": "AUTOMATIC"
+					}
+					""")
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.body("name", equalTo("Auto Draw Room"))
+				.body("drawMode", equalTo("AUTOMATIC"));
+		}
+
+		/**
+		 * A creation request that omits {@code drawMode} returns HTTP 200 and
+		 * the response contains {@code drawMode: "MANUAL"} as the default.
+		 */
+		@Test
+		@DisplayName("should default to MANUAL draw mode when not specified")
+		void shouldDefaultToManualDrawMode() {
+			given()
+				.contentType(ContentType.JSON)
+				.body("""
+					{
+						"name": "Default Mode Room"
+					}
+					""")
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.body("name", equalTo("Default Mode Room"))
+				.body("drawMode", equalTo("MANUAL"));
+		}
+
+		/**
+		 * After creating a room with {@code AUTOMATIC} draw mode, a GET request
+		 * authenticated with {@code X-Creator-Hash} returns {@code drawMode: "AUTOMATIC"}
+		 * in the creator view.
+		 */
+		@Test
+		@DisplayName("should return drawMode in GET room response for creator")
+		void shouldReturnDrawModeInCreatorView() {
+			// Arrange: create room with AUTOMATIC mode and capture credentials
+			var createResponse = given()
+				.contentType(ContentType.JSON)
+				.body("""
+					{
+						"name": "Creator View Auto Room",
+						"drawMode": "AUTOMATIC"
+					}
+					""")
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.extract()
+				.response();
+
+			String sessionCode = createResponse.path("sessionCode");
+			String creatorHash = createResponse.path("creatorHash");
+
+			// Act & Assert: GET with creator hash returns AUTOMATIC drawMode
+			given()
+				.header("X-Creator-Hash", creatorHash)
+			.when()
+				.get("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("drawMode", equalTo("AUTOMATIC"))
+				.body("creatorHash", equalTo(creatorHash));
+		}
+
+		/**
+		 * After creating a room with {@code AUTOMATIC} draw mode, a GET request
+		 * without {@code X-Creator-Hash} returns {@code drawMode: "AUTOMATIC"}
+		 * in the player view.
+		 */
+		@Test
+		@DisplayName("should return drawMode in GET room response for player")
+		void shouldReturnDrawModeInPlayerView() {
+			// Arrange: create room with AUTOMATIC mode and capture session code
+			String sessionCode = given()
+				.contentType(ContentType.JSON)
+				.body("""
+					{
+						"name": "Player View Auto Room",
+						"drawMode": "AUTOMATIC"
+					}
+					""")
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.extract()
+				.path("sessionCode");
+
+			// Act & Assert: GET without creator hash returns AUTOMATIC drawMode and no creatorHash
+			given()
+			.when()
+				.get("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("drawMode", equalTo("AUTOMATIC"))
+				.body("$", not(hasKey("creatorHash")));
+		}
 	}
 }

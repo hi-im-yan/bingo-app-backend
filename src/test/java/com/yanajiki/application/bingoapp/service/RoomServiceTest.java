@@ -6,6 +6,7 @@ import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
+import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -50,12 +51,22 @@ class RoomServiceTest {
 	// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 	/**
-	 * Builds a {@link CreateRoomForm} with the given name and description.
+	 * Builds a {@link CreateRoomForm} with the given name and description,
+	 * leaving {@code drawMode} null (service defaults to MANUAL).
 	 */
 	private CreateRoomForm buildForm(String name, String description) {
 		CreateRoomForm form = new CreateRoomForm();
 		form.setName(name);
 		form.setDescription(description);
+		return form;
+	}
+
+	/**
+	 * Builds a {@link CreateRoomForm} with the given name, description, and explicit draw mode.
+	 */
+	private CreateRoomForm buildForm(String name, String description, DrawMode drawMode) {
+		CreateRoomForm form = buildForm(name, description);
+		form.setDrawMode(drawMode);
 		return form;
 	}
 
@@ -76,10 +87,10 @@ class RoomServiceTest {
 
 		/**
 		 * A valid creation form with a unique name should persist the entity and return a creator-view DTO
-		 * that includes the {@code creatorHash} and both drawn fields (empty).
+		 * that includes the {@code creatorHash}, both drawn fields (empty), and {@code drawMode} defaulting to MANUAL.
 		 */
 		@Test
-		@DisplayName("success — saves entity and returns creator DTO with creatorHash")
+		@DisplayName("success — saves entity and returns creator DTO with creatorHash and MANUAL drawMode by default")
 		void success_savesEntityAndReturnsCreatorDto() {
 			// given
 			CreateRoomForm form = buildForm("Friday Night Bingo", "Weekly game");
@@ -99,8 +110,31 @@ class RoomServiceTest {
 			assertThat(result.creatorHash()).isNotBlank();
 			assertThat(result.drawnNumbers()).isEmpty();
 			assertThat(result.drawnLabels()).isEmpty();
+			assertThat(result.drawMode()).isEqualTo(DrawMode.MANUAL);
 
 			verify(repository).findByName("Friday Night Bingo");
+			verify(repository).save(any(RoomEntity.class));
+		}
+
+		/**
+		 * When {@code drawMode} is explicitly set to AUTOMATIC in the form, the returned DTO
+		 * must reflect AUTOMATIC — not the default MANUAL.
+		 */
+		@Test
+		@DisplayName("success — explicit AUTOMATIC drawMode is preserved in the response")
+		void success_automaticDrawMode_isPreservedInResponse() {
+			// given
+			CreateRoomForm form = buildForm("Auto Bingo Night", "Automatic draws", DrawMode.AUTOMATIC);
+			RoomEntity saved = RoomEntity.createEntityObject("Auto Bingo Night", "Automatic draws", DrawMode.AUTOMATIC);
+
+			when(repository.findByName("Auto Bingo Night")).thenReturn(Optional.empty());
+			when(repository.save(any(RoomEntity.class))).thenReturn(saved);
+
+			// when
+			RoomDTO result = roomService.createRoom(form);
+
+			// then
+			assertThat(result.drawMode()).isEqualTo(DrawMode.AUTOMATIC);
 			verify(repository).save(any(RoomEntity.class));
 		}
 
@@ -383,6 +417,134 @@ class RoomServiceTest {
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 7))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("already been drawn");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Calling {@code drawNumber()} on an AUTOMATIC room must throw {@link IllegalArgumentException}
+		 * with a message indicating automatic draw mode is in use.
+		 */
+		@Test
+		@DisplayName("wrong mode (AUTOMATIC room) — throws IllegalArgumentException")
+		void automaticRoom_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Auto Room", null, DrawMode.AUTOMATIC);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 10))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("This room uses automatic draw mode");
+
+			verify(repository, never()).save(any());
+		}
+	}
+
+	// ─── drawRandomNumber ────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("drawRandomNumber")
+	class DrawRandomNumber {
+
+		/**
+		 * Drawing a random number on an AUTOMATIC room must pick one of the remaining numbers,
+		 * persist the entity, and return the player view with the new number included.
+		 */
+		@Test
+		@DisplayName("success — picks a number from remaining pool, saves entity, returns player DTO")
+		void success_picksRemainingNumberAndReturnsPlayerDto() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Auto Draw Room", null, DrawMode.AUTOMATIC);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+			stubStandardMapper();
+
+			// when
+			RoomDTO result = roomService.drawRandomNumber(sessionCode, creatorHash);
+
+			// then
+			assertThat(result.drawnNumbers()).hasSize(1);
+			int drawnNumber = result.drawnNumbers().get(0);
+			assertThat(drawnNumber).isBetween(1, 75);
+			assertThat(result.drawnLabels()).containsExactly("X-" + drawnNumber);
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * When all 75 numbers have already been drawn, {@code drawRandomNumber()} must throw
+		 * {@link IllegalStateException}.
+		 */
+		@Test
+		@DisplayName("all numbers drawn — throws IllegalStateException")
+		void allNumbersDrawn_throwsIllegalStateException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Full Room", null, DrawMode.AUTOMATIC);
+			for (int i = 1; i <= 75; i++) {
+				entity.addDrawnNumber(i);
+			}
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawRandomNumber(sessionCode, creatorHash))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("All numbers have been drawn");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Calling {@code drawRandomNumber()} on a MANUAL room must throw {@link IllegalArgumentException}
+		 * with a message indicating manual draw mode is in use.
+		 */
+		@Test
+		@DisplayName("wrong mode (MANUAL room) — throws IllegalArgumentException")
+		void manualRoom_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Manual Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawRandomNumber(sessionCode, creatorHash))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("This room uses manual draw mode");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Calling {@code drawRandomNumber()} with an unknown session code or wrong creator hash
+		 * must throw {@link RoomNotFoundException}.
+		 */
+		@Test
+		@DisplayName("room not found — throws RoomNotFoundException")
+		void roomNotFound_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST4", "bad-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.drawRandomNumber("GHOST4", "bad-hash"))
+				.isInstanceOf(RoomNotFoundException.class);
 
 			verify(repository, never()).save(any());
 		}

@@ -1,5 +1,6 @@
 package com.yanajiki.application.bingoapp.database;
 
+import com.yanajiki.application.bingoapp.game.DrawMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -100,6 +101,47 @@ class RoomEntityTest {
 
 			// then — collision probability is ~1/36^6 ≈ 1 in 2 billion
 			assertThat(first.getSessionCode()).isNotEqualTo(second.getSessionCode());
+		}
+
+		/**
+		 * When no draw mode is supplied, the factory method must default to {@link DrawMode#MANUAL}.
+		 */
+		@Test
+		@DisplayName("defaults drawMode to MANUAL when not specified")
+		void defaultsDrawModeToManual() {
+			// when
+			RoomEntity entity = RoomEntity.createEntityObject("Manual Room", "desc");
+
+			// then
+			assertThat(entity.getDrawMode()).isEqualTo(DrawMode.MANUAL);
+		}
+
+		/**
+		 * When {@link DrawMode#AUTOMATIC} is explicitly provided, the factory method must
+		 * store it on the entity.
+		 */
+		@Test
+		@DisplayName("sets drawMode to AUTOMATIC when explicitly provided")
+		void setsDrawModeToAutomatic() {
+			// when
+			RoomEntity entity = RoomEntity.createEntityObject("Auto Room", "desc", DrawMode.AUTOMATIC);
+
+			// then
+			assertThat(entity.getDrawMode()).isEqualTo(DrawMode.AUTOMATIC);
+		}
+
+		/**
+		 * Passing {@link DrawMode#MANUAL} explicitly to the three-argument factory method
+		 * must yield the same result as the two-argument default.
+		 */
+		@Test
+		@DisplayName("sets drawMode to MANUAL when explicitly provided")
+		void setsDrawModeToManualExplicitly() {
+			// when
+			RoomEntity entity = RoomEntity.createEntityObject("Explicit Manual Room", "desc", DrawMode.MANUAL);
+
+			// then
+			assertThat(entity.getDrawMode()).isEqualTo(DrawMode.MANUAL);
 		}
 	}
 
