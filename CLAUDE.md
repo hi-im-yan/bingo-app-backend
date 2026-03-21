@@ -1,115 +1,68 @@
-# CLAUDE.md
+# CLAUDE.md — Bingo Room Management API
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Bingo room management API with real-time number drawing via WebSocket.
-Rooms are created via REST, numbers are drawn and broadcast in real-time over STOMP WebSocket.
+Real-time bingo room API: REST for room CRUD, STOMP WebSocket for number drawing.
 
 ## Stack
+Java 21, Spring Boot 3.4.4, Maven, Lombok, H2 (dev/test), PostgreSQL (prod),
+WebSocket (STOMP), SpringDoc OpenAPI, JUnit 5 + Mockito, RestAssured, JaCoCo (80% min).
 
-- **Java 21**, **Spring Boot 3.4.4**, **Maven**
-- **Lombok**, **PostgreSQL** (prod), **H2** (dev/test)
-- **WebSocket (STOMP)** for real-time number broadcasting
-- **SpringDoc OpenAPI** for API docs (Swagger UI at `/swagger-ui.html`)
-- **JUnit 5 + Mockito** (unit), **RestAssured** (integration), **JaCoCo** (80% min coverage)
-
-## Build & Test Commands
-
-```bash
-mvn clean compile              # Compile
-mvn clean test                 # Run all tests (unit + integration)
-mvn clean package              # Build JAR (includes tests)
-mvn spring-boot:run            # Run locally (dev profile, H2 in-memory)
-mvn test -Dtest=RoomServiceTest                    # Single test class
-mvn test -Dtest=RoomServiceTest#shouldCreateRoom   # Single test method
-```
-
-If `mvn` is not in PATH, install via SDKMAN (`sdk install maven`). Same for JDK 21.
-
-## Docker
-
-```bash
+## Commands
+mvn clean compile                                    # Compile
+mvn clean test                                       # All tests
+mvn clean package                                    # Build JAR
+mvn spring-boot:run                                  # Run locally (dev profile, H2)
+mvn test -Dtest=ClassName                            # Single test class
+mvn test -Dtest=ClassName#methodName                 # Single test method
 docker-compose up                                    # Postgres only (dev)
 docker-compose -f docker-compose-app-bd.yml up       # App + Postgres
-```
+
+If mvn/JDK 21 not in PATH: install via SDKMAN (sdk install maven / sdk install java 21-tem).
 
 ## Architecture
+Layered: controller -> service -> repository
 
-Layered: `controller -> service -> repository`
-
-```
 com.yanajiki.application.bingoapp/
-  api/            # REST controllers, forms (CreateRoomForm), responses (RoomDTO, ApiResponse)
-  service/        # Business logic (RoomService) — all logic lives here
-  database/       # JPA entity (RoomEntity) + Spring Data repository
-  exception/      # Custom exceptions + GlobalExceptionHandler (@RestControllerAdvice)
-  websocket/      # STOMP WebSocket controller + config
-  config/         # CORS config, OpenAPI config
-  game/           # NumberLabelMapper interface + StandardBingoMapper (75-ball bingo rules) + DrawMode enum
-```
+  api/        # Controllers, forms, responses (RoomDTO, ApiResponse)
+  service/    # All business logic (RoomService)
+  database/   # JPA entity (RoomEntity) + repository
+  exception/  # Custom exceptions + GlobalExceptionHandler
+  websocket/  # STOMP controller + config
+  config/     # CORS, OpenAPI
+  game/       # NumberLabelMapper interface + DrawMode enum
 
-### Key Design Decisions
+## Design Conventions
+- **Controllers are thin** — delegate everything to RoomService. No business logic in controllers.
+- **NumberLabelMapper** interface defines valid ranges and label format. StandardBingoMapper = 75-ball. Extensible for future variants.
+- **Drawn numbers** stored via @ElementCollection (separate table), not CSV.
+- **creatorHash** (UUID) = privileged identity; **sessionCode** (6-char) = public room ID. Two DTO views hide creatorHash from players via @JsonInclude(NON_NULL).
+- **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
 
-- **Controllers are thin** — they delegate everything to `RoomService`. No business logic in controllers.
-- **Game abstraction**: `NumberLabelMapper` interface defines valid number ranges and label format (B/I/N/G/O columns). `StandardBingoMapper` implements 75-ball bingo. This allows future variants (e.g., 90-ball).
-- **Drawn numbers** stored via `@ElementCollection` (separate `room_drawn_numbers` table), not CSV.
-- **Creator identity**: `creatorHash` (UUID) passed in `X-Creator-Hash` header for privileged operations (draw, delete). `sessionCode` (6-char alphanumeric via `SecureRandom`) is the public room identifier.
-- **Two DTO views**: `RoomDTO.fromEntityToCreator()` includes creatorHash; `RoomDTO.fromEntityToPlayer()` hides it via `@JsonInclude(NON_NULL)`.
-- **Draw modes**: `DrawMode` enum (`MANUAL`, `AUTOMATIC`) stored per room. Manual mode: creator picks exact number. Automatic mode: server picks random number from remaining pool. Mode is enforced — each room only accepts its designated draw endpoint.
-
-### API Endpoints
-
+## API Endpoints
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/v1/room` | Create room (optional `drawMode`: `MANUAL`/`AUTOMATIC`, defaults `MANUAL`) | None |
-| GET | `/api/v1/room/{session-code}` | Get room | `X-Creator-Hash` header (optional, determines view) |
-| DELETE | `/api/v1/room/{session-code}` | Delete room | `X-Creator-Hash` header (required) |
-| WS | `/bingo-connect` → `/app/add-number` | Manual draw: creator picks number (MANUAL rooms only) | creatorHash in payload |
-| WS | `/bingo-connect` → `/app/draw-number` | Automatic draw: server picks random number (AUTOMATIC rooms only) | creatorHash in payload |
+| POST | /api/v1/room | Create room (optional drawMode, defaults MANUAL) | None |
+| GET | /api/v1/room/{session-code} | Get room | X-Creator-Hash (optional, determines view) |
+| DELETE | /api/v1/room/{session-code} | Delete room | X-Creator-Hash (required) |
+| WS | /bingo-connect → /app/add-number | Manual draw (MANUAL rooms only) | creatorHash in payload |
+| WS | /bingo-connect → /app/draw-number | Automatic draw (AUTOMATIC rooms only) | creatorHash in payload |
 
-Both WS draw endpoints broadcast the updated `RoomDTO` (player view) to `/room/{sessionCode}`.
+Both WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
 
-### Exception Handling
+## Exception Pattern
+GlobalExceptionHandler maps: ConflictException→409, RoomNotFoundException→404,
+MethodArgumentNotValidException→400, IllegalArgumentException→400 (incl. draw mode mismatch),
+IllegalStateException→400 (e.g. all numbers drawn), generic Exception→500 (logged ERROR).
+Follow this pattern when adding new exceptions.
 
-Centralized in `GlobalExceptionHandler`:
-- `ConflictException` -> 409 (duplicate room name)
-- `RoomNotFoundException` -> 404
-- `MethodArgumentNotValidException` -> 400 (validation errors)
-- `IllegalArgumentException` -> 400 (business rule violation, including draw mode mismatch)
-- `IllegalStateException` -> 400 (e.g., all numbers already drawn)
-- Generic `Exception` -> 500 (logged at ERROR)
-
-## Spring Profiles
-
-- **dev** (default): H2 in-memory, permissive CORS (`*`), H2 console at `/h2-console`
-- **prod**: PostgreSQL (env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`), strict CORS, `ddl-auto=validate`
-
-## Testing Patterns
-
-- **Unit tests** (`RoomServiceTest`): Mockito mocks for repository/mapper, `@Nested` + `@DisplayName` organization
-- **Integration tests** (`RoomControllerIntegrationTest`): RestAssured on random port with H2, BDD given/when/then style
-- **Entity tests** (`RoomEntityTest`): Factory method and append behavior
+## Testing Conventions
+- Unit tests: Mockito mocks, @Nested + @DisplayName organization
+- Integration tests: RestAssured, BDD given/when/then style
 - Tests use dev profile (H2) by default
 
-## Git Workflow
+## Profiles
+- dev (default): H2 in-memory, permissive CORS, /h2-console
+- prod: PostgreSQL (env: DB_HOST/PORT/NAME/USER/PASSWORD), strict CORS, ddl-auto=validate
 
-- Branch `v2` for current development; merge to `main` when validated
-- Conventional commits format
-- Feature sub-branches off `v2` if needed
-
-## CI/CD
-
-GitHub Actions workflow triggered on PR to `develop` or `main`:
-1. Test (`mvn clean test` on JDK 21)
-2. Build artifact (`mvn clean package`)
-3. Docker build + push
-
-## Team Structure (Standard)
-
-| Role | Model | Tools & Skills | Responsibility |
-|------|-------|----------------|---------------|
-| Orchestrator | Sonnet | /new-feature, /status, gh CLI, TaskCreate/TaskUpdate | Manages issues, delegates, reviews output, git workflow |
-| Implementer | Sonnet | Read, Edit, Write, Grep, Glob, Bash, /review (self-review) | Writes tests and implementation (TDD in single agent). Follow conventions above |
-| Explorer | Haiku | Read, Glob, Grep | Quick codebase searches and lookups. No editing |
+## Git & Team
+Branch v2 for development. Feature sub-branches off v2 if needed. Conventional commits.
+Team structure: **Standard** profile (see ~/.claude/references/team-profiles.md).
