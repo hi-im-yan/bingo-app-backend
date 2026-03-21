@@ -29,7 +29,16 @@
                     <label for="form-room-description">Room description</label>
                     <input type="text" id="form-room-description" class="form-control" placeholder="Room description here...">
                 </div>
-                <button id="form-room-submit" class="btn btn-warning" type="submit">Create Room</button>
+                <div class="form-group mt-2">
+                    <label>Draw Mode</label>
+                    <div class="btn-group ms-2" role="group">
+                        <input type="radio" class="btn-check" name="drawMode" id="draw-mode-manual" value="MANUAL" checked>
+                        <label class="btn btn-outline-primary" for="draw-mode-manual">Manual</label>
+                        <input type="radio" class="btn-check" name="drawMode" id="draw-mode-automatic" value="AUTOMATIC">
+                        <label class="btn btn-outline-primary" for="draw-mode-automatic">Automatic</label>
+                    </div>
+                </div>
+                <button id="form-room-submit" class="btn btn-warning mt-2" type="submit">Create Room</button>
             </form>
         </div>
     </section>
@@ -172,6 +181,15 @@
             <button class="btn btn-primary" id="btn-confirmar-numero" disabled="true" onclick="addNumber()">Confirm</button>
 
             <h1 id="last-number"></h1>
+        </div>
+        <div class="col-md-12" id="GM-interface-auto" style="display:none">
+            <h1>Game Master interface <span class="badge bg-success">Automatic</span></h1>
+            <h1 id="inviteCodeAuto"></h1>
+            <br>
+            <button class="btn btn-lg btn-success" id="btn-draw-random" onclick="drawRandomNumber()">Draw Number</button>
+            <br><br>
+            <h1 id="last-number-auto"></h1>
+            <h2 id="all-drawn-numbers-auto"></h2>
         </div>
     </div>
 </div>
