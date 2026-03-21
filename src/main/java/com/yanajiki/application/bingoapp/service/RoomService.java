@@ -6,11 +6,16 @@ import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
+import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Service layer for bingo room management.
@@ -41,9 +46,12 @@ public class RoomService {
 	 * and persists a new {@link RoomEntity}. Returns the creator view of the
 	 * room, which includes the {@code creatorHash} needed for administrative actions.
 	 * </p>
+	 * <p>
+	 * If {@code drawMode} is not specified in the form (null), it defaults to {@link DrawMode#MANUAL}.
+	 * </p>
 	 *
-	 * @param form the creation form containing name and description
-	 * @return a {@link RoomDTO} with full creator data, including {@code creatorHash}
+	 * @param form the creation form containing name, description, and optional draw mode
+	 * @return a {@link RoomDTO} with full creator data, including {@code creatorHash} and {@code drawMode}
 	 * @throws ConflictException if a room with the same name already exists
 	 */
 	public RoomDTO createRoom(CreateRoomForm form) {
@@ -54,10 +62,11 @@ public class RoomService {
 					throw new ConflictException("Room already exists.");
 				});
 
-		RoomEntity entity = RoomEntity.createEntityObject(form.getName(), form.getDescription());
+		DrawMode mode = form.getDrawMode() != null ? form.getDrawMode() : DrawMode.MANUAL;
+		RoomEntity entity = RoomEntity.createEntityObject(form.getName(), form.getDescription(), mode);
 		RoomEntity saved = repository.save(entity);
 
-		log.info("Room created successfully with sessionCode '{}'", saved.getSessionCode());
+		log.info("Room created successfully with sessionCode '{}' and drawMode '{}'", saved.getSessionCode(), mode);
 		return RoomDTO.fromEntityToCreator(saved, numberLabelMapper);
 	}
 
@@ -133,6 +142,10 @@ public class RoomService {
 		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
 				.orElseThrow(() -> new RoomNotFoundException("Room not found."));
 
+		if (entity.getDrawMode() != DrawMode.MANUAL) {
+			throw new IllegalArgumentException("This room uses automatic draw mode");
+		}
+
 		validateDrawnNumber(number, entity);
 
 		entity.addDrawnNumber(number);
@@ -140,6 +153,63 @@ public class RoomService {
 
 		log.info("Number {} drawn in room '{}'", number, sessionCode);
 		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
+	}
+
+	/**
+	 * Draws a random number from the remaining pool for automatic draw mode rooms.
+	 * <p>
+	 * Selects a random number from the set of numbers in [{@code numberLabelMapper.getMinNumber()},
+	 * {@code numberLabelMapper.getMaxNumber()}] that have not yet been drawn. Persists the update
+	 * and returns the player view for broadcasting to connected clients.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @param creatorHash the creator's authentication hash
+	 * @return a {@link RoomDTO} in player view (without {@code creatorHash}) with the new number included
+	 * @throws RoomNotFoundException     if no room matches the given session code and creator hash
+	 * @throws IllegalArgumentException  if the room is not in {@link DrawMode#AUTOMATIC} draw mode
+	 * @throws IllegalStateException     if all numbers in the pool have already been drawn
+	 */
+	public RoomDTO drawRandomNumber(String sessionCode, String creatorHash) {
+		log.info("Drawing random number in room '{}'", sessionCode);
+
+		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
+				.orElseThrow(() -> new RoomNotFoundException("Room not found"));
+
+		if (entity.getDrawMode() != DrawMode.AUTOMATIC) {
+			throw new IllegalArgumentException("This room uses manual draw mode");
+		}
+
+		int number = selectRandomNumber(entity);
+		entity.addDrawnNumber(number);
+		repository.save(entity);
+
+		log.info("Random number {} drawn in room '{}'", number, sessionCode);
+		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
+	}
+
+	/**
+	 * Selects a random number from the pool of numbers not yet drawn in the given room.
+	 * <p>
+	 * Uses {@link SecureRandom} for selection, consistent with session code generation.
+	 * </p>
+	 *
+	 * @param entity the room entity whose drawn numbers are checked against the full pool
+	 * @return a randomly selected undrawn number
+	 * @throws IllegalStateException if no numbers remain in the pool
+	 */
+	private int selectRandomNumber(RoomEntity entity) {
+		List<Integer> remaining = IntStream.rangeClosed(
+						numberLabelMapper.getMinNumber(), numberLabelMapper.getMaxNumber())
+				.filter(n -> !entity.getDrawnNumbers().contains(n))
+				.boxed()
+				.toList();
+
+		if (remaining.isEmpty()) {
+			throw new IllegalStateException("All numbers have been drawn");
+		}
+
+		return remaining.get(new SecureRandom().nextInt(remaining.size()));
 	}
 
 	/**

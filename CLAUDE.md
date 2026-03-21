@@ -47,7 +47,7 @@ com.yanajiki.application.bingoapp/
   exception/      # Custom exceptions + GlobalExceptionHandler (@RestControllerAdvice)
   websocket/      # STOMP WebSocket controller + config
   config/         # CORS config, OpenAPI config
-  game/           # NumberLabelMapper interface + StandardBingoMapper (75-ball bingo rules)
+  game/           # NumberLabelMapper interface + StandardBingoMapper (75-ball bingo rules) + DrawMode enum
 ```
 
 ### Key Design Decisions
@@ -57,15 +57,19 @@ com.yanajiki.application.bingoapp/
 - **Drawn numbers** stored via `@ElementCollection` (separate `room_drawn_numbers` table), not CSV.
 - **Creator identity**: `creatorHash` (UUID) passed in `X-Creator-Hash` header for privileged operations (draw, delete). `sessionCode` (6-char alphanumeric via `SecureRandom`) is the public room identifier.
 - **Two DTO views**: `RoomDTO.fromEntityToCreator()` includes creatorHash; `RoomDTO.fromEntityToPlayer()` hides it via `@JsonInclude(NON_NULL)`.
+- **Draw modes**: `DrawMode` enum (`MANUAL`, `AUTOMATIC`) stored per room. Manual mode: creator picks exact number. Automatic mode: server picks random number from remaining pool. Mode is enforced — each room only accepts its designated draw endpoint.
 
 ### API Endpoints
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/v1/room` | Create room | None |
+| POST | `/api/v1/room` | Create room (optional `drawMode`: `MANUAL`/`AUTOMATIC`, defaults `MANUAL`) | None |
 | GET | `/api/v1/room/{session-code}` | Get room | `X-Creator-Hash` header (optional, determines view) |
 | DELETE | `/api/v1/room/{session-code}` | Delete room | `X-Creator-Hash` header (required) |
-| WS | `/bingo-connect` → `/app/add-number` | Draw number (broadcasts to `/room/{sessionCode}`) | creatorHash in payload |
+| WS | `/bingo-connect` → `/app/add-number` | Manual draw: creator picks number (MANUAL rooms only) | creatorHash in payload |
+| WS | `/bingo-connect` → `/app/draw-number` | Automatic draw: server picks random number (AUTOMATIC rooms only) | creatorHash in payload |
+
+Both WS draw endpoints broadcast the updated `RoomDTO` (player view) to `/room/{sessionCode}`.
 
 ### Exception Handling
 
@@ -73,7 +77,8 @@ Centralized in `GlobalExceptionHandler`:
 - `ConflictException` -> 409 (duplicate room name)
 - `RoomNotFoundException` -> 404
 - `MethodArgumentNotValidException` -> 400 (validation errors)
-- `IllegalArgumentException` -> 400 (business rule violation)
+- `IllegalArgumentException` -> 400 (business rule violation, including draw mode mismatch)
+- `IllegalStateException` -> 400 (e.g., all numbers already drawn)
 - Generic `Exception` -> 500 (logged at ERROR)
 
 ## Spring Profiles

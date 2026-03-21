@@ -3,6 +3,7 @@ package com.yanajiki.application.bingoapp.websocket;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
 import com.yanajiki.application.bingoapp.service.RoomService;
 import com.yanajiki.application.bingoapp.websocket.form.AddNumberForm;
+import com.yanajiki.application.bingoapp.websocket.form.DrawNumberForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -44,5 +45,25 @@ public class WebSocketController {
 
 		log.debug("Broadcasting draw update for room '{}' to topic '{}'", sessionCode, dynamicTopic);
 		messagingTemplate.convertAndSend(dynamicTopic, updatedRoom);
+	}
+
+	/**
+	 * Draws a random number for automatic draw mode rooms.
+	 * <p>
+	 * Delegates to {@link RoomService#drawRandomNumber} to validate the creator, pick a random
+	 * undrawn number, and persist. Broadcasts the updated player-view room state to all subscribers
+	 * of the room's dynamic topic ({@code /room/{sessionCode}}).
+	 * Only works for rooms in AUTOMATIC draw mode — service enforces this constraint.
+	 * </p>
+	 *
+	 * @param message the draw request containing session code and creator hash
+	 */
+	@MessageMapping("/draw-number")
+	public void drawRandomNumber(DrawNumberForm message) {
+		log.info("Automatic draw requested for room: {}", message.getSessionCode());
+		RoomDTO roomDTO = roomService.drawRandomNumber(
+				message.getSessionCode(), message.getCreatorHash());
+		messagingTemplate.convertAndSend(
+				"/room/" + message.getSessionCode(), roomDTO);
 	}
 }

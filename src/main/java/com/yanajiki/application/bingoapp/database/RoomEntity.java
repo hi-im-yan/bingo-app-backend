@@ -1,6 +1,6 @@
 package com.yanajiki.application.bingoapp.database;
 
-
+import com.yanajiki.application.bingoapp.game.DrawMode;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -54,6 +54,10 @@ public class RoomEntity {
 	@Column(name = "number")
 	private List<Integer> drawnNumbers = new ArrayList<>();
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private DrawMode drawMode;
+
 	@CreationTimestamp
 	@Temporal(TemporalType.TIMESTAMP)
 	private LocalDateTime createDateTime;
@@ -63,13 +67,27 @@ public class RoomEntity {
 	private LocalDateTime updateDateTime;
 
 	/**
-	 * Factory method to create a new {@link RoomEntity} with a generated session code and creator hash.
+	 * Factory method to create a new {@link RoomEntity} with a generated session code and creator hash,
+	 * defaulting to {@link DrawMode#MANUAL}.
 	 *
 	 * @param name        the unique name of the room
 	 * @param description a short description of the room
-	 * @return a new {@link RoomEntity} ready to be persisted
+	 * @return a new {@link RoomEntity} ready to be persisted with {@link DrawMode#MANUAL}
 	 */
 	public static RoomEntity createEntityObject(String name, String description) {
+		return createEntityObject(name, description, DrawMode.MANUAL);
+	}
+
+	/**
+	 * Factory method to create a new {@link RoomEntity} with a generated session code, creator hash,
+	 * and the specified draw mode.
+	 *
+	 * @param name        the unique name of the room
+	 * @param description a short description of the room
+	 * @param drawMode    the draw mode for the room ({@link DrawMode#MANUAL} or {@link DrawMode#AUTOMATIC})
+	 * @return a new {@link RoomEntity} ready to be persisted
+	 */
+	public static RoomEntity createEntityObject(String name, String description, DrawMode drawMode) {
 		String creatorHash = UUID.randomUUID().toString();
 
 		RoomEntity roomEntity = new RoomEntity();
@@ -80,6 +98,7 @@ public class RoomEntity {
 		roomEntity.setUpdateDateTime(LocalDateTime.now());
 		roomEntity.setDrawnNumbers(new ArrayList<>());
 		roomEntity.setSessionCode(newSessionCode());
+		roomEntity.setDrawMode(drawMode);
 		return roomEntity;
 	}
 

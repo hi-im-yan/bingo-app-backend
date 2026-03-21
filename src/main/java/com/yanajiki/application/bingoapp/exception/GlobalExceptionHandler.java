@@ -79,6 +79,22 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
+	 * Handles {@link IllegalStateException}, returning HTTP 400 BAD REQUEST.
+	 * <p>
+	 * Used when the current state of the resource makes the operation invalid —
+	 * for example, attempting to draw a number when all numbers have already been drawn.
+	 * </p>
+	 *
+	 * @param ex the illegal state exception thrown by the service layer
+	 * @return a {@link ResponseEntity} containing the error status and message
+	 */
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<ApiResponse> handleIllegalState(IllegalStateException ex) {
+		int httpStatus = HttpStatus.BAD_REQUEST.value();
+		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
+	}
+
+	/**
 	 * Catch-all handler for any unhandled {@link Exception}, returning HTTP 500 INTERNAL SERVER ERROR.
 	 * <p>
 	 * The full exception is logged at ERROR level. A generic message is returned to the client

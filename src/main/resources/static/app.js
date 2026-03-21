@@ -23,11 +23,10 @@ function subscribeToRoom() {
     setTimeout(() => {}, 5000)
     stompClient.subscribe('/room/' + roomSessionCode, (message) => {
         console.log(message.body)
-        let drawnNumbers = JSON.parse(message.body).drawnNumbers
-        let drawnNumbersList = drawnNumbers.split(",");
-        $("#drawn-number").html(`Drawn Number: ${drawnNumbersList[drawnNumbersList.length - 1]}`)
-        $("#all-drawn-numbers").html(`History: ${drawnNumbers}`)
-        console.log(parsedMessage)
+        let room = JSON.parse(message.body);
+        let lastLabel = room.drawnLabels[room.drawnLabels.length - 1];
+        $("#drawn-number").html(`Drawn Number: ${lastLabel}`)
+        $("#all-drawn-numbers").html(`History: ${room.drawnLabels.join(', ')}`)
     });
     localStorage.setItem("sessionCode", roomSessionCode)
 }
@@ -56,6 +55,18 @@ function addNumber() {
    $("#last-number").html(`Last number: ${localStorage.getItem('selectedNumber')}`)
 }
 
+function drawRandomNumber() {
+   $("#btn-draw-random").prop('disabled', true)
+   $("#btn-draw-random").html('Drawing...')
+   stompClient.publish({
+       destination: "/app/draw-number",
+       body: JSON.stringify({
+           "session-code": localStorage.getItem('sessionCode'),
+           "creator-hash": localStorage.getItem('creatorHash'),
+       })
+   });
+}
+
 function selectNumber(number) {
     localStorage.setItem('selectedNumber', number);
     $("#btn-confirmar-numero").prop('disabled', false)
@@ -65,11 +76,12 @@ function selectNumber(number) {
 connect()
 $(function () {
     $("#form-room-submit").click( async () => {
+        let drawMode = $("input[name='drawMode']:checked").val();
         let reqBody = JSON.stringify({
                             'name': $("#form-room-name").val(),
-                            'description': $("#form-room-description").val()
+                            'description': $("#form-room-description").val(),
+                            'drawMode': drawMode
                         })
-//        console.log(reqBody)
 
         await fetch("http://localhost:8080/api/v1/room", {
             method: "POST",
@@ -86,16 +98,29 @@ $(function () {
             console.log("Success:", data);
             localStorage.setItem("creatorHash", data.creatorHash)
             localStorage.setItem("sessionCode", data.sessionCode)
-            $("#GM-interface").prop("style", "display:true");
+            localStorage.setItem("drawMode", data.drawMode)
             $("#room-creator-section").prop("style", "display:none");
-            $("#inviteCode").html(`Invite Code: ${data.sessionCode}`)
 
-            // Handle the response data as needed
+            if (data.drawMode === "AUTOMATIC") {
+                $("#GM-interface-auto").prop("style", "display:true");
+                $("#inviteCodeAuto").html(`Invite Code: ${data.sessionCode}`)
+                // Subscribe to room to receive draw results
+                stompClient.subscribe('/room/' + data.sessionCode, (message) => {
+                    let room = JSON.parse(message.body);
+                    let lastNumber = room.drawnLabels[room.drawnLabels.length - 1];
+                    $("#last-number-auto").html(`Last drawn: ${lastNumber}`)
+                    $("#all-drawn-numbers-auto").html(`History: ${room.drawnLabels.join(', ')}`)
+                    $("#btn-draw-random").prop('disabled', false)
+                    $("#btn-draw-random").html('Draw Number')
+                });
+            } else {
+                $("#GM-interface").prop("style", "display:true");
+                $("#inviteCode").html(`Invite Code: ${data.sessionCode}`)
+            }
         })
         .catch(error => {
             console.error("Error:", error);
             alert("Error creating room, try again with another room name.")
-            // Handle errors
         })
     });
 
