@@ -66,3 +66,4 @@ Follow this pattern when adding new exceptions.
 ## Git & Team
 Branch v2 for development. Feature sub-branches off v2 if needed. Conventional commits.
 Team structure: **Standard** profile (see ~/.claude/references/team-profiles.md).
+Task management: `.tasks/` system (see ~/.claude/references/task-system.md). Planning on main branch, execution on feature branches.
