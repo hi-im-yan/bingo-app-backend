@@ -18,6 +18,27 @@ The `X-Creator-Hash` header controls which view you get on GET requests. If pres
 
 ---
 
+## Draw Modes
+
+Rooms have one of two draw modes, set at creation. The mode determines how numbers are drawn and which WebSocket endpoint to use. **The frontend should adapt its UI based on the room's `drawMode`.**
+
+### MANUAL Mode
+The creator **picks which number** to draw. The frontend should show a number board (1–75) where the creator selects a specific number. That number is sent via `/app/add-number` with the `number` field in the payload.
+
+**Creator UI:** Clickable number grid (1–75), already-drawn numbers disabled/highlighted.
+
+### AUTOMATIC Mode
+The **server picks a random** undrawn number. The creator just triggers a draw (e.g. a "Draw Next" button). The request goes to `/app/draw-number` with no number in the payload — the server selects one.
+
+**Creator UI:** Single "Draw Next Number" button. No number selection needed.
+
+### Both Modes
+- Players see the same view regardless of mode — a live-updating board of drawn numbers.
+- The mode is fixed at room creation and cannot be changed.
+- All draws broadcast the updated room state to all subscribers via WebSocket.
+
+---
+
 ## REST API
 
 ### Create Room
