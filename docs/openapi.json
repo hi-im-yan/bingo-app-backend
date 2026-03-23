@@ -1,0 +1,297 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Bingo App API",
+        "description": "API for managing bingo rooms and real-time number drawing",
+        "contact": {
+            "name": "Bingo App",
+            "url": "https://github.com/yanajiki/bingoapp"
+        },
+        "version": "2.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080",
+            "description": "Generated server url"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Rooms",
+            "description": "Bingo room management"
+        }
+    ],
+    "paths": {
+        "/api/v1/room": {
+            "post": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "Create a bingo room",
+                "description": "Creates a new bingo room and returns the creator view, including the creatorHash required for privileged operations.",
+                "operationId": "create",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateRoomForm"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Room created successfully",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RoomDTO"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error \u2014 name is blank or exceeds 255 characters",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "A room with the same name already exists",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/room/{session-code}": {
+            "get": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "Get a bingo room",
+                "description": "Returns the room identified by the given session code. If the X-Creator-Hash header is supplied and matches, the response includes the creatorHash (creator view). Otherwise the creatorHash is omitted (player view).",
+                "operationId": "search",
+                "parameters": [
+                    {
+                        "name": "session-code",
+                        "in": "path",
+                        "description": "Public session code of the room",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "X-Creator-Hash",
+                        "in": "header",
+                        "description": "Optional creator hash; if valid, returns the creator view including creatorHash",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Room found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RoomDTO"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Room not found for the given session code",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "Delete a bingo room",
+                "description": "Permanently deletes the room identified by the given session code. Requires the X-Creator-Hash header to authenticate the request as the room creator.",
+                "operationId": "delete",
+                "parameters": [
+                    {
+                        "name": "session-code",
+                        "in": "path",
+                        "description": "Public session code of the room",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "X-Creator-Hash",
+                        "in": "header",
+                        "description": "Creator hash for authentication; must match the hash assigned at room creation",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Room deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid or missing creator hash",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Room not found for the given session code",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/room/{session-code}/qrcode": {
+            "get": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "Get QR code for a bingo room",
+                "description": "Returns a 250x250 PNG QR code that encodes the join URL for the given room. No authentication required. Returns 404 if the room does not exist.",
+                "operationId": "getQrCode",
+                "parameters": [
+                    {
+                        "name": "session-code",
+                        "in": "path",
+                        "description": "Public session code of the room",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "QR code PNG image",
+                        "content": {
+                            "image/png": {}
+                        }
+                    },
+                    "404": {
+                        "description": "Room not found for the given session code",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CreateRoomForm": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 0
+                    },
+                    "description": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 0
+                    },
+                    "drawMode": {
+                        "type": "string",
+                        "enum": [
+                            "MANUAL",
+                            "AUTOMATIC"
+                        ]
+                    }
+                }
+            },
+            "RoomDTO": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "sessionCode": {
+                        "type": "string"
+                    },
+                    "creatorHash": {
+                        "type": "string"
+                    },
+                    "drawnNumbers": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    "drawnLabels": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "drawMode": {
+                        "type": "string",
+                        "enum": [
+                            "MANUAL",
+                            "AUTOMATIC"
+                        ]
+                    }
+                }
+            },
+            "ApiResponse": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}
