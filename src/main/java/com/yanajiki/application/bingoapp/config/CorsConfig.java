@@ -40,6 +40,11 @@ public class CorsConfig {
 					.allowedMethods("GET", "POST", "DELETE", "OPTIONS")
 					.allowedHeaders("*")
 					.allowCredentials(false);
+				registry.addMapping("/bingo-connect/**")
+					.allowedOrigins(allowedOrigins)
+					.allowedMethods("GET", "POST", "OPTIONS")
+					.allowedHeaders("*")
+					.allowCredentials(false);
 			}
 		};
 	}

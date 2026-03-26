@@ -47,9 +47,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 		if ("*".equals(allowedOrigins)) {
-			registry.addEndpoint("/bingo-connect").setAllowedOriginPatterns("*");
+			registry.addEndpoint("/bingo-connect").setAllowedOriginPatterns("*").withSockJS();
 		} else {
-			registry.addEndpoint("/bingo-connect").setAllowedOrigins(allowedOrigins);
+			registry.addEndpoint("/bingo-connect").setAllowedOrigins(allowedOrigins).withSockJS();
 		}
 	}
 
