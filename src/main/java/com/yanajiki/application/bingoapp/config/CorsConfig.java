@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * Global CORS configuration for all REST API endpoints.
  * <p>
- * Applies CORS rules to {@code /api/**} based on the {@code app.cors.allowed-origins}
+ * Applies CORS rules to {@code /api/**} and {@code /bingo-connect/**} based on the {@code app.cors.allowed-origins}
  * property, which is set per Spring profile (e.g. {@code *} in dev, explicit origins in prod).
  * This supersedes any {@code @CrossOrigin} annotations on individual controllers.
  * </p>
@@ -21,7 +21,7 @@ public class CorsConfig {
 	private String allowedOrigins;
 
 	/**
-	 * Registers a global CORS mapping for all {@code /api/**} routes.
+	 * Registers a global CORS mapping for {@code /api/**} and {@code /bingo-connect/**} routes.
 	 * <p>
 	 * When the configured origin is {@code *}, credentials are not supported and the
 	 * wildcard is left as-is. For explicit origins, the same policy applies since
