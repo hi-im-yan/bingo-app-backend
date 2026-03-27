@@ -1,6 +1,6 @@
 # Feature: GM Number Correction
 
-**Status**: ready
+**Status**: done
 **Blocked by feature**: —
 **Branch**: feature/gm-number-correction
 
@@ -8,10 +8,10 @@
 
 | ID | Task | Status | Blocked By | Assignee |
 |----|------|--------|------------|----------|
-| 001 | CorrectNumberForm + NumberCorrectionDTO | ready | — | — |
-| 002 | RoomService.correctLastNumber() + unit tests | blocked | 001 | — |
-| 003 | WebSocket endpoint + dual broadcast | blocked | 002 | — |
-| 004 | Integration test | blocked | 003 | — |
+| 001 | CorrectNumberForm + NumberCorrectionDTO | done | — | — |
+| 002 | RoomService.correctLastNumber() + unit tests | done | 001 | — |
+| 003 | WebSocket endpoint + dual broadcast | done | 002 | — |
+| 004 | Integration test | done | 003 | — |
 
 ## Decisions
 - Only the last drawn number can be corrected (not arbitrary index)

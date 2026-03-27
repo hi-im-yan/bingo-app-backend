@@ -1,8 +1,10 @@
 package com.yanajiki.application.bingoapp.websocket;
 
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.service.CorrectionResult;
 import com.yanajiki.application.bingoapp.service.RoomService;
 import com.yanajiki.application.bingoapp.websocket.form.AddNumberForm;
+import com.yanajiki.application.bingoapp.websocket.form.CorrectNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.DrawNumberForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,33 @@ public class WebSocketController {
 	 *
 	 * @param message the draw request containing session code and creator hash
 	 */
+	/**
+	 * Handles a number correction request from the game master.
+	 * <p>
+	 * Delegates to {@link RoomService#correctLastNumber} to validate the creator, replace the
+	 * last drawn number, and persist. Broadcasts the updated player-view room state to
+	 * {@code /room/{sessionCode}} and a correction notification to
+	 * {@code /room/{sessionCode}/corrections} so connected clients can display the change.
+	 * </p>
+	 *
+	 * @param message the incoming message containing session code, creator hash, and corrected number
+	 */
+	@MessageMapping("/correct-number")
+	public void correctNumber(CorrectNumberForm message) {
+		String sessionCode = message.getSessionCode();
+		log.info("Number correction requested for room '{}'", sessionCode);
+
+		CorrectionResult result = roomService.correctLastNumber(
+				sessionCode, message.getCreatorHash(), message.getNewNumber());
+
+		String roomTopic = "/room/" + sessionCode;
+		String correctionTopic = "/room/" + sessionCode + "/corrections";
+
+		log.debug("Broadcasting correction for room '{}': {}", sessionCode, result.correctionDTO().message());
+		messagingTemplate.convertAndSend(roomTopic, result.roomDTO());
+		messagingTemplate.convertAndSend(correctionTopic, result.correctionDTO());
+	}
+
 	@MessageMapping("/draw-number")
 	public void drawRandomNumber(DrawNumberForm message) {
 		log.info("Automatic draw requested for room: {}", message.getSessionCode());

@@ -8,6 +8,7 @@ import com.yanajiki.application.bingoapp.exception.ConflictException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -440,6 +441,185 @@ class RoomServiceTest {
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 10))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("This room uses automatic draw mode");
+
+			verify(repository, never()).save(any());
+		}
+	}
+
+	// ─── correctLastNumber ──────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("correctLastNumber")
+	class CorrectLastNumber {
+
+		/**
+		 * Correcting the last drawn number should replace it in the list, persist,
+		 * and return a {@link CorrectionResult} with both the updated room and correction notification.
+		 */
+		@Test
+		@DisplayName("success — replaces last number and returns correction result")
+		void success_replacesLastNumberAndReturnsCorrectionResult() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Correction Room", null);
+			entity.addDrawnNumber(5);
+			entity.addDrawnNumber(42);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+			stubStandardMapper();
+
+			// when
+			CorrectionResult result = roomService.correctLastNumber(sessionCode, creatorHash, 12);
+
+			// then
+			assertThat(result.roomDTO().drawnNumbers()).containsExactly(5, 12);
+			assertThat(result.roomDTO().drawnLabels()).containsExactly("X-5", "X-12");
+			assertThat(result.roomDTO().creatorHash()).isNull();
+			assertThat(result.correctionDTO().oldNumber()).isEqualTo(42);
+			assertThat(result.correctionDTO().oldLabel()).isEqualTo("X-42");
+			assertThat(result.correctionDTO().newNumber()).isEqualTo(12);
+			assertThat(result.correctionDTO().newLabel()).isEqualTo("X-12");
+			assertThat(result.correctionDTO().message()).isEqualTo("GM changed X-42 to X-12");
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * Correcting in a room that does not exist must throw {@link RoomNotFoundException}.
+		 */
+		@Test
+		@DisplayName("room not found — throws RoomNotFoundException")
+		void roomNotFound_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST5", "bad-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber("GHOST5", "bad-hash", 10))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Correcting in an AUTOMATIC room must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("wrong mode (AUTOMATIC) — throws IllegalArgumentException")
+		void automaticRoom_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Auto Correct Room", null, DrawMode.AUTOMATIC);
+			entity.addDrawnNumber(5);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 10))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("manual draw mode");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Correcting when no numbers have been drawn must throw {@link IllegalStateException}.
+		 */
+		@Test
+		@DisplayName("no numbers drawn — throws IllegalStateException")
+		void noNumbersDrawn_throwsIllegalStateException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Empty Draw Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 10))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("No numbers have been drawn");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Correcting to a number below the valid range (0) must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("new number out of range (0) — throws IllegalArgumentException")
+		void newNumberBelowRange_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Range Correct Room", null);
+			entity.addDrawnNumber(5);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 0))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("between 1 and 75");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Correcting to a number above the valid range (76) must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("new number out of range (76) — throws IllegalArgumentException")
+		void newNumberAboveRange_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Range Correct Room 2", null);
+			entity.addDrawnNumber(5);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 76))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("between 1 and 75");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Correcting to a number already in the drawn list (not the last one) must throw {@link IllegalArgumentException}.
+		 */
+		@Test
+		@DisplayName("new number already drawn (duplicate) — throws IllegalArgumentException")
+		void duplicateNewNumber_throwsIllegalArgumentException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Duplicate Correct Room", null);
+			entity.addDrawnNumber(5);
+			entity.addDrawnNumber(42);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(numberLabelMapper.getMinNumber()).thenReturn(1);
+			when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 5))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("already been drawn");
 
 			verify(repository, never()).save(any());
 		}

@@ -1,6 +1,7 @@
 package com.yanajiki.application.bingoapp.service;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
+import com.yanajiki.application.bingoapp.api.response.NumberCorrectionDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
@@ -153,6 +154,56 @@ public class RoomService {
 
 		log.info("Number {} drawn in room '{}'", number, sessionCode);
 		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
+	}
+
+	/**
+	 * Corrects the last drawn number in a MANUAL mode room.
+	 * <p>
+	 * Validates the creator, ensures the room is in MANUAL mode, checks that at least one number
+	 * has been drawn, and that the new number is within range and not already drawn.
+	 * Replaces the last element in the drawn numbers list and persists the change.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @param creatorHash the creator's authentication hash
+	 * @param newNumber   the corrected number to replace the last drawn number
+	 * @return a {@link CorrectionResult} containing the updated player-view DTO and correction notification
+	 * @throws RoomNotFoundException    if no room matches the given session code and creator hash
+	 * @throws IllegalArgumentException if the room is not MANUAL, or the new number is invalid
+	 * @throws IllegalStateException    if no numbers have been drawn yet
+	 */
+	public CorrectionResult correctLastNumber(String sessionCode, String creatorHash, int newNumber) {
+		log.info("Correcting last number in room '{}' to {}", sessionCode, newNumber);
+
+		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
+				.orElseThrow(() -> new RoomNotFoundException("Room not found."));
+
+		if (entity.getDrawMode() != DrawMode.MANUAL) {
+			throw new IllegalArgumentException("Number correction is only available for manual draw mode rooms");
+		}
+
+		List<Integer> drawnNumbers = entity.getDrawnNumbers();
+		if (drawnNumbers.isEmpty()) {
+			throw new IllegalStateException("No numbers have been drawn yet");
+		}
+
+		int oldNumber = drawnNumbers.get(drawnNumbers.size() - 1);
+		drawnNumbers.remove(drawnNumbers.size() - 1);
+
+		validateDrawnNumber(newNumber, entity);
+
+		drawnNumbers.add(newNumber);
+		repository.save(entity);
+
+		String oldLabel = numberLabelMapper.toLabel(oldNumber);
+		String newLabel = numberLabelMapper.toLabel(newNumber);
+
+		log.info("Corrected last number in room '{}': {} -> {}", sessionCode, oldLabel, newLabel);
+
+		RoomDTO roomDTO = RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
+		NumberCorrectionDTO correctionDTO = NumberCorrectionDTO.of(oldNumber, oldLabel, newNumber, newLabel);
+
+		return new CorrectionResult(roomDTO, correctionDTO);
 	}
 
 	/**

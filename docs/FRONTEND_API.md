@@ -159,7 +159,29 @@ stompClient.connect({}, () => {
 Destination: /room/{sessionCode}
 ```
 
-Receives a `RoomDTO` (player view) every time a number is drawn. Same JSON shape as the GET response without `creatorHash`.
+Receives a `RoomDTO` (player view) every time a number is drawn or corrected. Same JSON shape as the GET response without `creatorHash`.
+
+---
+
+### Subscribe — Number Corrections
+
+```
+Destination: /room/{sessionCode}/corrections
+```
+
+Receives a `NumberCorrectionDTO` whenever the GM corrects the last drawn number. Use this to show a toast/notification to players about the correction.
+
+```json
+{
+  "oldNumber": 42,
+  "oldLabel": "N-42",
+  "newNumber": 12,
+  "newLabel": "B-12",
+  "message": "GM changed N-42 to B-12"
+}
+```
+
+> **Note:** The `/room/{sessionCode}` topic also receives the updated `RoomDTO` when a correction happens — so the board state stays in sync automatically. The `/corrections` topic is an *additional* notification for displaying correction alerts.
 
 ---
 
@@ -208,6 +230,35 @@ Destination: /app/draw-number
 | `creator-hash` | string | yes | must match room creator |
 
 **Result:** Server picks a random undrawn number and broadcasts updated `RoomDTO` to `/room/{sessionCode}`.
+
+---
+
+### Send — Correct Last Number (MANUAL rooms only)
+
+```
+Destination: /app/correct-number
+```
+
+**Payload:**
+```json
+{
+  "session-code": "A3X9K2",
+  "creator-hash": "550e8400-e29b-41d4-a716-446655440000",
+  "new-number": 12
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `session-code` | string | yes | non-blank |
+| `creator-hash` | string | yes | must match room creator |
+| `new-number` | integer | yes | 1–75, not already drawn (excluding the number being replaced) |
+
+**Result:** Replaces the last drawn number. Broadcasts:
+1. Updated `RoomDTO` to `/room/{sessionCode}` (board state)
+2. `NumberCorrectionDTO` to `/room/{sessionCode}/corrections` (correction notification)
+
+**Errors (via STOMP error frame):** room not found, AUTOMATIC mode room, no numbers drawn, new number out of range, new number already drawn.
 
 ---
 
@@ -303,6 +354,28 @@ interface DrawNumberForm {
 }
 ```
 
+### CorrectNumberForm (WebSocket)
+
+```typescript
+interface CorrectNumberForm {
+  "session-code": string;
+  "creator-hash": string;
+  "new-number": number;         // 1-75, replacement for last drawn number
+}
+```
+
+### NumberCorrectionDTO (WebSocket notification)
+
+```typescript
+interface NumberCorrectionDTO {
+  oldNumber: number;
+  oldLabel: string;             // e.g. "N-42"
+  newNumber: number;
+  newLabel: string;             // e.g. "B-12"
+  message: string;              // e.g. "GM changed N-42 to B-12"
+}
+```
+
 ### ApiResponse (Error)
 
 ```typescript
@@ -321,5 +394,7 @@ interface ApiResponse {
 3. **Players join** → `GET /api/v1/room/{sessionCode}` (no auth)
 4. **Connect WebSocket** → SockJS to `/bingo-connect`, subscribe to `/room/{sessionCode}`
 5. **Draw numbers** → creator sends to `/app/add-number` (manual) or `/app/draw-number` (auto)
-6. **All clients** receive real-time updates via the subscription
-7. **Delete room** → `DELETE` with `X-Creator-Hash` when done
+6. **Correct last number** → creator sends to `/app/correct-number` (manual rooms only)
+7. **All clients** receive real-time updates via `/room/{sessionCode}` subscription
+8. **Correction alerts** → optionally subscribe to `/room/{sessionCode}/corrections` for toast notifications
+9. **Delete room** → `DELETE` with `X-Creator-Hash` when done
