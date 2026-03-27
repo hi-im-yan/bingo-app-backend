@@ -8,6 +8,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -91,6 +92,22 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalStateException.class)
 	public ResponseEntity<ApiResponse> handleIllegalState(IllegalStateException ex) {
 		int httpStatus = HttpStatus.BAD_REQUEST.value();
+		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
+	}
+
+	/**
+	 * Handles {@link NoResourceFoundException}, returning HTTP 404 NOT FOUND.
+	 * <p>
+	 * Prevents static resource requests (e.g. {@code /favicon.ico}) from being caught
+	 * by the catch-all handler and logged as unexpected errors.
+	 * </p>
+	 *
+	 * @param ex the no-resource-found exception thrown by Spring's resource handling
+	 * @return a {@link ResponseEntity} containing the error status and message
+	 */
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ApiResponse> handleNoResourceFound(NoResourceFoundException ex) {
+		int httpStatus = HttpStatus.NOT_FOUND.value();
 		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
 	}
 
