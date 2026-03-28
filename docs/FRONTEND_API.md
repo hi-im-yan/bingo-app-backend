@@ -118,6 +118,33 @@ X-Creator-Hash: {uuid}          # required
 
 ---
 
+### List Players in Room
+
+```
+GET /api/v1/room/{session-code}/players
+X-Creator-Hash: {uuid}          # required
+```
+
+**Response (200):**
+```json
+[
+  {
+    "name": "Alice",
+    "joinDateTime": "2026-03-28T12:00:00"
+  },
+  {
+    "name": "Bob",
+    "joinDateTime": "2026-03-28T12:01:30"
+  }
+]
+```
+
+Returns an empty array if no players have joined yet.
+
+**Errors:** `404` room not found or invalid creator hash
+
+---
+
 ### Get Room QR Code
 
 ```
@@ -182,6 +209,48 @@ Receives a `NumberCorrectionDTO` whenever the GM corrects the last drawn number.
 ```
 
 > **Note:** The `/room/{sessionCode}` topic also receives the updated `RoomDTO` when a correction happens — so the board state stays in sync automatically. The `/corrections` topic is an *additional* notification for displaying correction alerts.
+
+---
+
+### Subscribe — Player Joins
+
+```
+Destination: /room/{sessionCode}/players
+```
+
+Receives a `PlayerDTO` every time a new player joins the room.
+
+```json
+{
+  "name": "Alice",
+  "joinDateTime": "2026-03-28T12:00:00"
+}
+```
+
+---
+
+### Send — Join Room
+
+```
+Destination: /app/join-room
+```
+
+**Payload:**
+```json
+{
+  "session-code": "A3X9K2",
+  "player-name": "Alice"
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `session-code` | string | yes | non-blank |
+| `player-name` | string | yes | non-blank, max 50 chars, unique per room |
+
+**Result:** Broadcasts `PlayerDTO` to `/room/{sessionCode}/players`.
+
+**Errors:** `404` room not found | `409` player name already taken in this room
 
 ---
 
@@ -376,6 +445,24 @@ interface NumberCorrectionDTO {
 }
 ```
 
+### PlayerDTO
+
+```typescript
+interface PlayerDTO {
+  name: string;
+  joinDateTime: string;         // ISO datetime, e.g. "2026-03-28T12:00:00"
+}
+```
+
+### JoinRoomForm (WebSocket)
+
+```typescript
+interface JoinRoomForm {
+  "session-code": string;
+  "player-name": string;        // max 50 chars, unique per room
+}
+```
+
 ### ApiResponse (Error)
 
 ```typescript
@@ -391,10 +478,11 @@ interface ApiResponse {
 
 1. **Create room** → store `creatorHash` in localStorage, `sessionCode` for sharing
 2. **Share room** → give players the `sessionCode` (or QR code URL)
-3. **Players join** → `GET /api/v1/room/{sessionCode}` (no auth)
-4. **Connect WebSocket** → SockJS to `/bingo-connect`, subscribe to `/room/{sessionCode}`
+3. **Players join** → `GET /api/v1/room/{sessionCode}` (no auth), then send `/app/join-room` via WS
+4. **Connect WebSocket** → SockJS to `/bingo-connect`, subscribe to `/room/{sessionCode}` and `/room/{sessionCode}/players`
 5. **Draw numbers** → creator sends to `/app/add-number` (manual) or `/app/draw-number` (auto)
 6. **Correct last number** → creator sends to `/app/correct-number` (manual rooms only)
 7. **All clients** receive real-time updates via `/room/{sessionCode}` subscription
 8. **Correction alerts** → optionally subscribe to `/room/{sessionCode}/corrections` for toast notifications
-9. **Delete room** → `DELETE` with `X-Creator-Hash` when done
+9. **List players** → creator calls `GET /api/v1/room/{sessionCode}/players` with `X-Creator-Hash`
+10. **Delete room** → `DELETE` with `X-Creator-Hash` when done
