@@ -1,7 +1,10 @@
 package com.yanajiki.application.bingoapp.service;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
+import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.database.PlayerEntity;
+import com.yanajiki.application.bingoapp.database.PlayerRepository;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
@@ -45,6 +48,10 @@ class RoomServiceTest {
 	 */
 	@Mock
 	private NumberLabelMapper numberLabelMapper;
+
+	/** Mocked player repository for player join and list operations. */
+	@Mock
+	private PlayerRepository playerRepository;
 
 	@InjectMocks
 	private RoomService roomService;
@@ -727,6 +734,148 @@ class RoomServiceTest {
 				.isInstanceOf(RoomNotFoundException.class);
 
 			verify(repository, never()).save(any());
+		}
+	}
+
+	// ─── joinRoom ────────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("Join Room")
+	class JoinRoom {
+
+		/**
+		 * A valid session code and unique player name should persist the player
+		 * and return a {@link PlayerDTO} with the player's name.
+		 */
+		@Test
+		@DisplayName("should register player and return PlayerDTO")
+		void success_registersPlayerAndReturnsPlayerDto() {
+			// given
+			RoomEntity room = RoomEntity.createEntityObject("Test Room", null);
+			String sessionCode = room.getSessionCode();
+
+			when(repository.findBySessionCode(sessionCode)).thenReturn(Optional.of(room));
+			when(playerRepository.existsByNameAndRoomEntity("Alice", room)).thenReturn(false);
+			when(playerRepository.save(any(PlayerEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+			// when
+			PlayerDTO result = roomService.joinRoom(sessionCode, "Alice");
+
+			// then
+			assertThat(result.name()).isEqualTo("Alice");
+			verify(playerRepository).save(any(PlayerEntity.class));
+		}
+
+		/**
+		 * Using a session code that does not match any room must throw {@link RoomNotFoundException}
+		 * and never attempt to save a player.
+		 */
+		@Test
+		@DisplayName("should throw RoomNotFoundException when session code is invalid")
+		void invalidSessionCode_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCode("GHOST")).thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.joinRoom("GHOST", "Alice"))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(playerRepository, never()).save(any());
+		}
+
+		/**
+		 * When a player with the same name is already registered in the room,
+		 * a {@link ConflictException} must be thrown and no save should occur.
+		 */
+		@Test
+		@DisplayName("should throw ConflictException when player name is duplicate in room")
+		void duplicatePlayerName_throwsConflictException() {
+			// given
+			RoomEntity room = RoomEntity.createEntityObject("Conflict Room", null);
+			String sessionCode = room.getSessionCode();
+
+			when(repository.findBySessionCode(sessionCode)).thenReturn(Optional.of(room));
+			when(playerRepository.existsByNameAndRoomEntity("Alice", room)).thenReturn(true);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.joinRoom(sessionCode, "Alice"))
+				.isInstanceOf(ConflictException.class)
+				.hasMessageContaining("already taken");
+
+			verify(playerRepository, never()).save(any());
+		}
+	}
+
+	// ─── getPlayersByRoom ────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("Get Players By Room")
+	class GetPlayersByRoom {
+
+		/**
+		 * A valid session code and creator hash should return the full list of players
+		 * as {@link PlayerDTO} instances.
+		 */
+		@Test
+		@DisplayName("should return list of PlayerDTOs for valid creator")
+		void success_returnsPlayerDtoList() {
+			// given
+			RoomEntity room = RoomEntity.createEntityObject("Player List Room", null);
+			String sessionCode = room.getSessionCode();
+			String creatorHash = room.getCreatorHash();
+
+			PlayerEntity alice = PlayerEntity.create("Alice", room);
+			PlayerEntity bob = PlayerEntity.create("Bob", room);
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(room));
+			when(playerRepository.findByRoomEntity(room)).thenReturn(List.of(alice, bob));
+
+			// when
+			List<PlayerDTO> result = roomService.getPlayersByRoom(sessionCode, creatorHash);
+
+			// then
+			assertThat(result).hasSize(2);
+			assertThat(result).extracting(PlayerDTO::name).containsExactly("Alice", "Bob");
+		}
+
+		/**
+		 * When no players have joined, the method should return an empty list.
+		 */
+		@Test
+		@DisplayName("should return empty list when no players have joined")
+		void noPlayers_returnsEmptyList() {
+			// given
+			RoomEntity room = RoomEntity.createEntityObject("Empty Room", null);
+			String sessionCode = room.getSessionCode();
+			String creatorHash = room.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(room));
+			when(playerRepository.findByRoomEntity(room)).thenReturn(List.of());
+
+			// when
+			List<PlayerDTO> result = roomService.getPlayersByRoom(sessionCode, creatorHash);
+
+			// then
+			assertThat(result).isEmpty();
+		}
+
+		/**
+		 * Using an incorrect creator hash must throw {@link RoomNotFoundException}.
+		 */
+		@Test
+		@DisplayName("should throw RoomNotFoundException when creator hash is invalid")
+		void invalidCreatorHash_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("ROOM01", "wrong-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.getPlayersByRoom("ROOM01", "wrong-hash"))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(playerRepository, never()).findByRoomEntity(any());
 		}
 	}
 }

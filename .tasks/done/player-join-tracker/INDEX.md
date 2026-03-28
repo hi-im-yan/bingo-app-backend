@@ -1,6 +1,6 @@
 # Feature: Player Join Tracker
 
-**Status**: ready
+**Status**: done
 **Blocked by feature**: —
 **Branch**: feature/player-join-tracker
 
@@ -8,11 +8,11 @@
 
 | ID | Task | Status | Blocked By | Assignee |
 |----|------|--------|------------|----------|
-| 001 | PlayerEntity + PlayerRepository | ready | — | Sonnet |
-| 002 | PlayerDTO + JoinRoomForm | ready | — | Sonnet |
-| 003 | Service methods + unit tests | blocked | 001, 002 | Sonnet |
-| 004 | WebSocket + REST endpoints | blocked | 003 | Sonnet |
-| 005 | Integration tests | blocked | 004 | Sonnet |
+| 001 | PlayerEntity + PlayerRepository | done | — | Sonnet |
+| 002 | PlayerDTO + JoinRoomForm | done | — | Sonnet |
+| 003 | Service methods + unit tests | done | 001, 002 | Sonnet |
+| 004 | WebSocket + REST endpoints | done | 003 | Sonnet |
+| 005 | Integration tests | done | 004 | Sonnet |
 
 ## Decisions
 - PlayerEntity has @ManyToOne to RoomEntity (a room has many players)

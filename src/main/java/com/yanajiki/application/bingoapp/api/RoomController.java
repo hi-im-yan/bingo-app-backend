@@ -2,6 +2,7 @@ package com.yanajiki.application.bingoapp.api;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
 import com.yanajiki.application.bingoapp.api.response.ApiResponse;
+import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
 import com.yanajiki.application.bingoapp.service.QrCodeService;
 import com.yanajiki.application.bingoapp.service.RoomService;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * REST controller for bingo room management.
@@ -185,6 +188,41 @@ public class RoomController {
 		return ResponseEntity.ok()
 			.contentType(MediaType.IMAGE_PNG)
 			.body(imageBytes);
+	}
+
+	/**
+	 * Returns all players who have joined the given bingo room.
+	 * <p>
+	 * This is a creator-only operation. The {@code X-Creator-Hash} header must match
+	 * the hash assigned when the room was created.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @param creatorHash the creator's authentication hash, passed via {@code X-Creator-Hash} header
+	 * @return a list of {@link PlayerDTO} for all players in the room; empty list if no players joined
+	 */
+	@Operation(
+		summary = "List players in a room",
+		description = "Returns all players who have joined the room. Requires creator authentication via X-Creator-Hash header."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "Player list retrieved successfully"
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "404",
+			description = "Room not found or invalid creator hash",
+			content = @Content(schema = @Schema(implementation = ApiResponse.class))
+		)
+	})
+	@GetMapping("/{session-code}/players")
+	public List<PlayerDTO> getPlayers(
+		@Parameter(description = "Public session code of the room", required = true)
+		@PathVariable("session-code") String sessionCode,
+		@Parameter(description = "Creator hash for authentication; must match the hash assigned at room creation", required = true)
+		@RequestHeader("X-Creator-Hash") String creatorHash) {
+		return roomService.getPlayersByRoom(sessionCode, creatorHash);
 	}
 
 }

@@ -24,7 +24,7 @@ Layered: controller -> service -> repository
 com.yanajiki.application.bingoapp/
   api/        # Controllers, forms, responses (RoomDTO, ApiResponse)
   service/    # All business logic (RoomService)
-  database/   # JPA entity (RoomEntity) + repository
+  database/   # JPA entities (RoomEntity, PlayerEntity) + repositories
   exception/  # Custom exceptions + GlobalExceptionHandler
   websocket/  # STOMP controller + config
   config/     # CORS, OpenAPI
@@ -36,6 +36,7 @@ com.yanajiki.application.bingoapp/
 - **Drawn numbers** stored via @ElementCollection (separate table), not CSV.
 - **creatorHash** (UUID) = privileged identity; **sessionCode** (6-char) = public room ID. Two DTO views hide creatorHash from players via @JsonInclude(NON_NULL).
 - **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
+- **PlayerEntity** has @ManyToOne to RoomEntity. Unique constraint on (name, room_id). Player list is creator-only (REST), join broadcasts to `/room/{sessionCode}/players` (WS).
 
 ## API Endpoints
 | Method | Path | Description | Auth |
@@ -43,10 +44,13 @@ com.yanajiki.application.bingoapp/
 | POST | /api/v1/room | Create room (optional drawMode, defaults MANUAL) | None |
 | GET | /api/v1/room/{session-code} | Get room | X-Creator-Hash (optional, determines view) |
 | DELETE | /api/v1/room/{session-code} | Delete room | X-Creator-Hash (required) |
+| GET | /api/v1/room/{session-code}/players | List players in room | X-Creator-Hash (required) |
 | WS | /bingo-connect → /app/add-number | Manual draw (MANUAL rooms only) | creatorHash in payload |
 | WS | /bingo-connect → /app/draw-number | Automatic draw (AUTOMATIC rooms only) | creatorHash in payload |
+| WS | /bingo-connect → /app/join-room | Player joins a room | sessionCode + playerName in payload |
 
-Both WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
+Draw WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
+Join WS endpoint broadcasts PlayerDTO to /room/{sessionCode}/players.
 
 ## Exception Pattern
 GlobalExceptionHandler maps: ConflictException→409, RoomNotFoundException→404,

@@ -2,7 +2,10 @@ package com.yanajiki.application.bingoapp.service;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
 import com.yanajiki.application.bingoapp.api.response.NumberCorrectionDTO;
+import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.database.PlayerEntity;
+import com.yanajiki.application.bingoapp.database.PlayerRepository;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
@@ -39,6 +42,7 @@ public class RoomService {
 
 	private final RoomRepository repository;
 	private final NumberLabelMapper numberLabelMapper;
+	private final PlayerRepository playerRepository;
 
 	/**
 	 * Creates a new bingo room with the given form data.
@@ -237,6 +241,59 @@ public class RoomService {
 
 		log.info("Random number {} drawn in room '{}'", number, sessionCode);
 		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
+	}
+
+	/**
+	 * Registers a player in a bingo room.
+	 * <p>
+	 * Looks up the room by session code, validates that the player name is not already
+	 * taken in that room, then persists the player and returns a {@link PlayerDTO}.
+	 * </p>
+	 *
+	 * @param sessionCode the room's session code
+	 * @param playerName  the player's display name
+	 * @return {@link PlayerDTO} with the registered player's data
+	 * @throws RoomNotFoundException if no room with the given session code exists
+	 * @throws ConflictException     if the player name is already taken in this room
+	 */
+	public PlayerDTO joinRoom(String sessionCode, String playerName) {
+		log.info("Player '{}' joining room '{}'", playerName, sessionCode);
+
+		RoomEntity room = repository.findBySessionCode(sessionCode)
+			.orElseThrow(() -> new RoomNotFoundException("Room not found with session code: " + sessionCode));
+
+		if (playerRepository.existsByNameAndRoomEntity(playerName, room)) {
+			throw new ConflictException("Player name '" + playerName + "' is already taken in this room");
+		}
+
+		PlayerEntity player = PlayerEntity.create(playerName, room);
+		playerRepository.save(player);
+
+		log.info("Player '{}' successfully joined room '{}'", playerName, sessionCode);
+		return PlayerDTO.fromEntity(player);
+	}
+
+	/**
+	 * Returns all players in a room. Creator-only operation.
+	 * <p>
+	 * Authenticates the request by looking up the room using both session code and creator hash.
+	 * Returns the full player list as a list of {@link PlayerDTO} instances.
+	 * </p>
+	 *
+	 * @param sessionCode the room's session code
+	 * @param creatorHash the creator's authentication hash
+	 * @return list of {@link PlayerDTO} for all players in the room; empty list if no players joined
+	 * @throws RoomNotFoundException if no room matches the given session code and creator hash
+	 */
+	public List<PlayerDTO> getPlayersByRoom(String sessionCode, String creatorHash) {
+		log.debug("Fetching player list for room '{}' by creator", sessionCode);
+
+		RoomEntity room = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
+			.orElseThrow(() -> new RoomNotFoundException("Room not found or invalid creator hash"));
+
+		return playerRepository.findByRoomEntity(room).stream()
+			.map(PlayerDTO::fromEntity)
+			.toList();
 	}
 
 	/**

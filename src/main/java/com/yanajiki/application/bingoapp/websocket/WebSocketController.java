@@ -1,11 +1,14 @@
 package com.yanajiki.application.bingoapp.websocket;
 
+import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
 import com.yanajiki.application.bingoapp.service.CorrectionResult;
 import com.yanajiki.application.bingoapp.service.RoomService;
 import com.yanajiki.application.bingoapp.websocket.form.AddNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.CorrectNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.DrawNumberForm;
+import com.yanajiki.application.bingoapp.websocket.form.JoinRoomForm;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -94,5 +97,27 @@ public class WebSocketController {
 				message.getSessionCode(), message.getCreatorHash());
 		messagingTemplate.convertAndSend(
 				"/room/" + message.getSessionCode(), roomDTO);
+	}
+
+	/**
+	 * Handles a player joining a bingo room.
+	 * <p>
+	 * Delegates to {@link RoomService#joinRoom} to validate the room, check for duplicate
+	 * names, and persist the player. Broadcasts the new player's data to all subscribers
+	 * of the room's player topic ({@code /room/{sessionCode}/players}).
+	 * </p>
+	 *
+	 * @param form the join room form containing the player name and session code
+	 */
+	@MessageMapping("/join-room")
+	public void joinRoom(@Valid JoinRoomForm form) {
+		log.info("Player '{}' joining room '{}'", form.getPlayerName(), form.getSessionCode());
+
+		PlayerDTO player = roomService.joinRoom(form.getSessionCode(), form.getPlayerName());
+
+		messagingTemplate.convertAndSend(
+			"/room/" + form.getSessionCode() + "/players",
+			player
+		);
 	}
 }
