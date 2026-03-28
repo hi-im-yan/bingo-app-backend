@@ -67,6 +67,12 @@ Follow this pattern when adding new exceptions.
 - dev (default): H2 in-memory, permissive CORS, /h2-console
 - prod: PostgreSQL (env: DB_HOST/PORT/NAME/USER/PASSWORD), strict CORS, ddl-auto=validate
 
+## Feature Closeout Checklist
+When closing out a feature, always update ALL of these:
+- `CLAUDE.md` — new endpoints, entities, architecture changes, design decisions
+- `docs/FRONTEND_API.md` — REST endpoints, WS send/subscribe destinations, TypeScript interfaces, integration checklist
+- `docs/openapi.json` — regenerate from running app if static spec exists
+
 ## Git & Team
 Branch v2 for development. Feature sub-branches off v2 if needed. Conventional commits.
 Team structure: **Standard** profile (see ~/.claude/references/team-profiles.md).
