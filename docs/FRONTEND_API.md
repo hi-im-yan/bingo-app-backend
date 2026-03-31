@@ -229,6 +229,33 @@ Receives a `PlayerDTO` every time a new player joins the room.
 
 ---
 
+### Subscribe — Tiebreaker Updates
+
+```
+Destination: /room/{sessionCode}/tiebreak
+```
+
+Receives a `TiebreakDTO` on every tiebreaker event (start, each slot draw, finish). Only applicable to AUTOMATIC rooms. A room can have multiple sequential tiebreakers during a game, but only one active at a time.
+
+```json
+{
+  "status": "IN_PROGRESS",
+  "playerCount": 3,
+  "draws": [
+    { "slot": 1, "number": 42, "label": "N-42" }
+  ],
+  "winnerSlot": null
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `STARTED` | Tiebreaker created, no draws yet |
+| `IN_PROGRESS` | At least one slot has drawn, but not all |
+| `FINISHED` | All slots drawn, `winnerSlot` is set |
+
+---
+
 ### Send — Join Room
 
 ```
@@ -328,6 +355,60 @@ Destination: /app/correct-number
 2. `NumberCorrectionDTO` to `/room/{sessionCode}/corrections` (correction notification)
 
 **Errors (via STOMP error frame):** room not found, AUTOMATIC mode room, no numbers drawn, new number out of range, new number already drawn.
+
+---
+
+### Send — Start Tiebreaker (AUTOMATIC rooms only)
+
+```
+Destination: /app/start-tiebreak
+```
+
+**Payload:**
+```json
+{
+  "session-code": "A3X9K2",
+  "creator-hash": "550e8400-e29b-41d4-a716-446655440000",
+  "player-count": 3
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `session-code` | string | yes | non-blank |
+| `creator-hash` | string | yes | must match room creator |
+| `player-count` | integer | yes | 2–6 |
+
+**Result:** Creates a new tiebreaker session. Broadcasts `TiebreakDTO` with status `STARTED` to `/room/{sessionCode}/tiebreak`.
+
+**Errors:** `404` room not found | `400` not automatic mode, player count out of range | `409` tiebreaker already active
+
+---
+
+### Send — Tiebreaker Draw (AUTOMATIC rooms only)
+
+```
+Destination: /app/tiebreak-draw
+```
+
+**Payload:**
+```json
+{
+  "session-code": "A3X9K2",
+  "creator-hash": "550e8400-e29b-41d4-a716-446655440000",
+  "slot": 1
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `session-code` | string | yes | non-blank |
+| `creator-hash` | string | yes | must match room creator |
+| `slot` | integer | yes | 1-based, max = `playerCount` |
+
+**Result:** Draws a random number from the undrawn pool (excluding other tiebreaker draws) for the given slot. Broadcasts updated `TiebreakDTO` to `/room/{sessionCode}/tiebreak`. When all slots have drawn, the tiebreaker finishes and state is auto-cleared — a new tiebreaker can then be started.
+
+**Errors:** `404` room not found | `400` no active tiebreaker, slot out of range, slot already drawn
 
 ---
 
@@ -445,6 +526,43 @@ interface NumberCorrectionDTO {
 }
 ```
 
+### TiebreakDTO (WebSocket notification)
+
+```typescript
+interface TiebreakDTO {
+  status: "STARTED" | "IN_PROGRESS" | "FINISHED";
+  playerCount: number;
+  draws: TiebreakDrawEntry[];
+  winnerSlot?: number;            // set when FINISHED
+}
+
+interface TiebreakDrawEntry {
+  slot: number;                   // 1-based
+  number: number;                 // raw drawn number
+  label: string;                  // e.g. "N-42"
+}
+```
+
+### StartTiebreakForm (WebSocket)
+
+```typescript
+interface StartTiebreakForm {
+  "session-code": string;
+  "creator-hash": string;
+  "player-count": number;         // 2–6
+}
+```
+
+### TiebreakDrawForm (WebSocket)
+
+```typescript
+interface TiebreakDrawForm {
+  "session-code": string;
+  "creator-hash": string;
+  slot: number;                   // 1-based
+}
+```
+
 ### PlayerDTO
 
 ```typescript
@@ -484,5 +602,6 @@ interface ApiResponse {
 6. **Correct last number** → creator sends to `/app/correct-number` (manual rooms only)
 7. **All clients** receive real-time updates via `/room/{sessionCode}` subscription
 8. **Correction alerts** → optionally subscribe to `/room/{sessionCode}/corrections` for toast notifications
-9. **List players** → creator calls `GET /api/v1/room/{sessionCode}/players` with `X-Creator-Hash`
-10. **Delete room** → `DELETE` with `X-Creator-Hash` when done
+9. **Tiebreaker** (auto rooms) → subscribe to `/room/{sessionCode}/tiebreak`, creator sends `/app/start-tiebreak` then `/app/tiebreak-draw` per slot
+10. **List players** → creator calls `GET /api/v1/room/{sessionCode}/players` with `X-Creator-Hash`
+11. **Delete room** → `DELETE` with `X-Creator-Hash` when done

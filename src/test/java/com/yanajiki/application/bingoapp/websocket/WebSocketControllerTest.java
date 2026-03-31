@@ -2,10 +2,14 @@ package com.yanajiki.application.bingoapp.websocket;
 
 import com.yanajiki.application.bingoapp.api.response.NumberCorrectionDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.api.response.TiebreakDTO;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.service.CorrectionResult;
 import com.yanajiki.application.bingoapp.service.RoomService;
+import com.yanajiki.application.bingoapp.service.TiebreakService;
 import com.yanajiki.application.bingoapp.websocket.form.CorrectNumberForm;
+import com.yanajiki.application.bingoapp.websocket.form.StartTiebreakForm;
+import com.yanajiki.application.bingoapp.websocket.form.TiebreakDrawForm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,6 +21,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,6 +37,9 @@ class WebSocketControllerTest {
 
 	@Mock
 	private RoomService roomService;
+
+	@Mock
+	private TiebreakService tiebreakService;
 
 	@Mock
 	private SimpMessagingTemplate messagingTemplate;
@@ -73,6 +81,77 @@ class WebSocketControllerTest {
 			verify(roomService).correctLastNumber("ABC123", "hash", 12);
 			verify(messagingTemplate).convertAndSend("/room/ABC123", roomDTO);
 			verify(messagingTemplate).convertAndSend("/room/ABC123/corrections", correctionDTO);
+		}
+	}
+
+	// ─── startTiebreak ──────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("startTiebreak")
+	class StartTiebreakTest {
+
+		@Test
+		@DisplayName("success — calls service and broadcasts to tiebreak topic")
+		void success_callsServiceAndBroadcasts() {
+			// given
+			StartTiebreakForm form = new StartTiebreakForm("ABC123", "hash", 3);
+
+			TiebreakDTO dto = new TiebreakDTO("STARTED", 3, List.of(), null);
+			when(tiebreakService.startTiebreak("ABC123", "hash", 3)).thenReturn(dto);
+
+			// when
+			webSocketController.startTiebreak(form);
+
+			// then
+			verify(tiebreakService).startTiebreak("ABC123", "hash", 3);
+			verify(messagingTemplate).convertAndSend("/room/ABC123/tiebreak", dto);
+		}
+	}
+
+	// ─── tiebreakDraw ───────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("tiebreakDraw")
+	class TiebreakDrawTest {
+
+		@Test
+		@DisplayName("in progress — calls service and broadcasts, does not clear")
+		void inProgress_broadcastsWithoutClear() {
+			// given
+			TiebreakDrawForm form = new TiebreakDrawForm("ABC123", "hash", 1);
+
+			TiebreakDTO dto = new TiebreakDTO("IN_PROGRESS", 3,
+				List.of(new TiebreakDTO.TiebreakDrawEntry(1, 42, "N-42")), null);
+			when(tiebreakService.drawForSlot("ABC123", "hash", 1)).thenReturn(dto);
+
+			// when
+			webSocketController.tiebreakDraw(form);
+
+			// then
+			verify(tiebreakService).drawForSlot("ABC123", "hash", 1);
+			verify(messagingTemplate).convertAndSend("/room/ABC123/tiebreak", dto);
+			verify(tiebreakService, never()).clearTiebreak("ABC123");
+		}
+
+		@Test
+		@DisplayName("finished — broadcasts and clears tiebreaker state")
+		void finished_broadcastsAndClears() {
+			// given
+			TiebreakDrawForm form = new TiebreakDrawForm("ABC123", "hash", 2);
+
+			TiebreakDTO dto = new TiebreakDTO("FINISHED", 2,
+				List.of(
+					new TiebreakDTO.TiebreakDrawEntry(1, 42, "N-42"),
+					new TiebreakDTO.TiebreakDrawEntry(2, 65, "O-65")),
+				2);
+			when(tiebreakService.drawForSlot("ABC123", "hash", 2)).thenReturn(dto);
+
+			// when
+			webSocketController.tiebreakDraw(form);
+
+			// then
+			verify(messagingTemplate).convertAndSend("/room/ABC123/tiebreak", dto);
+			verify(tiebreakService).clearTiebreak("ABC123");
 		}
 	}
 }

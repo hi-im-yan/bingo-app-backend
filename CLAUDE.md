@@ -37,6 +37,7 @@ com.yanajiki.application.bingoapp/
 - **creatorHash** (UUID) = privileged identity; **sessionCode** (6-char) = public room ID. Two DTO views hide creatorHash from players via @JsonInclude(NON_NULL).
 - **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
 - **PlayerEntity** has @ManyToOne to RoomEntity. Unique constraint on (name, room_id). Player list is creator-only (REST), join broadcasts to `/room/{sessionCode}/players` (WS).
+- **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count 2–6, AUTOMATIC rooms only.
 
 ## API Endpoints
 | Method | Path | Description | Auth |
@@ -48,9 +49,12 @@ com.yanajiki.application.bingoapp/
 | WS | /bingo-connect → /app/add-number | Manual draw (MANUAL rooms only) | creatorHash in payload |
 | WS | /bingo-connect → /app/draw-number | Automatic draw (AUTOMATIC rooms only) | creatorHash in payload |
 | WS | /bingo-connect → /app/join-room | Player joins a room | sessionCode + playerName in payload |
+| WS | /bingo-connect → /app/start-tiebreak | Start tiebreaker (AUTOMATIC only) | creatorHash + playerCount in payload |
+| WS | /bingo-connect → /app/tiebreak-draw | Draw for tiebreaker slot (AUTOMATIC only) | creatorHash + slot in payload |
 
 Draw WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
 Join WS endpoint broadcasts PlayerDTO to /room/{sessionCode}/players.
+Tiebreaker WS endpoints broadcast TiebreakDTO to /room/{sessionCode}/tiebreak.
 
 ## Exception Pattern
 GlobalExceptionHandler maps: ConflictException→409, RoomNotFoundException→404,

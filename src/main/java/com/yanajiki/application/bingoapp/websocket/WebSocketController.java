@@ -2,12 +2,16 @@ package com.yanajiki.application.bingoapp.websocket;
 
 import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
+import com.yanajiki.application.bingoapp.api.response.TiebreakDTO;
 import com.yanajiki.application.bingoapp.service.CorrectionResult;
 import com.yanajiki.application.bingoapp.service.RoomService;
+import com.yanajiki.application.bingoapp.service.TiebreakService;
 import com.yanajiki.application.bingoapp.websocket.form.AddNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.CorrectNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.DrawNumberForm;
 import com.yanajiki.application.bingoapp.websocket.form.JoinRoomForm;
+import com.yanajiki.application.bingoapp.websocket.form.StartTiebreakForm;
+import com.yanajiki.application.bingoapp.websocket.form.TiebreakDrawForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +32,7 @@ import org.springframework.stereotype.Controller;
 public class WebSocketController {
 
 	private final RoomService roomService;
+	private final TiebreakService tiebreakService;
 	private final SimpMessagingTemplate messagingTemplate;
 
 	/**
@@ -119,5 +124,54 @@ public class WebSocketController {
 			"/room/" + form.getSessionCode() + "/players",
 			player
 		);
+	}
+
+	/**
+	 * Starts a tiebreaker for the given room.
+	 * <p>
+	 * Delegates to {@link TiebreakService#startTiebreak} and broadcasts the initial
+	 * tiebreaker state to {@code /room/{sessionCode}/tiebreak}.
+	 * </p>
+	 *
+	 * @param form the start tiebreaker form containing session code, creator hash, and player count
+	 */
+	@MessageMapping("/start-tiebreak")
+	public void startTiebreak(StartTiebreakForm form) {
+		log.info("Tiebreaker started for room '{}' with {} players",
+			form.getSessionCode(), form.getPlayerCount());
+
+		TiebreakDTO dto = tiebreakService.startTiebreak(
+			form.getSessionCode(), form.getCreatorHash(), form.getPlayerCount());
+
+		messagingTemplate.convertAndSend(
+			"/room/" + form.getSessionCode() + "/tiebreak", dto);
+	}
+
+	/**
+	 * Draws a tiebreaker number for the given slot.
+	 * <p>
+	 * Broadcasts updated tiebreaker state to {@code /room/{sessionCode}/tiebreak}.
+	 * When all slots have drawn (status {@code FINISHED}), clears the in-memory
+	 * tiebreaker state so a new tiebreaker can be started.
+	 * </p>
+	 *
+	 * @param form the draw form containing session code, creator hash, and slot index
+	 */
+	@MessageMapping("/tiebreak-draw")
+	public void tiebreakDraw(TiebreakDrawForm form) {
+		log.info("Tiebreaker draw for room '{}', slot {}",
+			form.getSessionCode(), form.getSlot());
+
+		TiebreakDTO dto = tiebreakService.drawForSlot(
+			form.getSessionCode(), form.getCreatorHash(), form.getSlot());
+
+		messagingTemplate.convertAndSend(
+			"/room/" + form.getSessionCode() + "/tiebreak", dto);
+
+		if ("FINISHED".equals(dto.status())) {
+			tiebreakService.clearTiebreak(form.getSessionCode());
+			log.info("Tiebreaker finished for room '{}', winner slot {}",
+				form.getSessionCode(), dto.winnerSlot());
+		}
 	}
 }
