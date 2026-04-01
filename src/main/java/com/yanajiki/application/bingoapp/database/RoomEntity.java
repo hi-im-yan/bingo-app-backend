@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -59,12 +59,10 @@ public class RoomEntity {
 	private DrawMode drawMode;
 
 	@CreationTimestamp
-	@Temporal(TemporalType.TIMESTAMP)
-	private LocalDateTime createDateTime;
+	private Instant createDateTime;
 
 	@UpdateTimestamp
-	@Temporal(TemporalType.TIMESTAMP)
-	private LocalDateTime updateDateTime;
+	private Instant updateDateTime;
 
 	/**
 	 * Factory method to create a new {@link RoomEntity} with a generated session code and creator hash,
@@ -94,8 +92,8 @@ public class RoomEntity {
 		roomEntity.setName(name);
 		roomEntity.setDescription(description);
 		roomEntity.setCreatorHash(creatorHash);
-		roomEntity.setCreateDateTime(LocalDateTime.now());
-		roomEntity.setUpdateDateTime(LocalDateTime.now());
+		roomEntity.setCreateDateTime(Instant.now());
+		roomEntity.setUpdateDateTime(Instant.now());
 		roomEntity.setDrawnNumbers(new ArrayList<>());
 		roomEntity.setSessionCode(newSessionCode());
 		roomEntity.setDrawMode(drawMode);

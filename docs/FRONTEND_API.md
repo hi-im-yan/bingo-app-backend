@@ -592,6 +592,17 @@ interface ApiResponse {
 
 ---
 
+## Room Expiration
+
+Rooms are **automatically deleted** after 24 hours of inactivity. Any mutation (number draw, player join, etc.) resets the timer. This is server-side only — no frontend action required.
+
+**What this means for the frontend:**
+- Long-idle rooms will disappear. If a `GET /api/v1/room/{sessionCode}` returns `404`, the room may have expired.
+- Consider showing a "room not found — it may have expired" message instead of a generic 404.
+- No keepalive mechanism is needed — normal game activity (draws, joins) resets the expiration automatically.
+
+---
+
 ## Quick Integration Checklist
 
 1. **Create room** → store `creatorHash` in localStorage, `sessionCode` for sharing

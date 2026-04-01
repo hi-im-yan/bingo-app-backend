@@ -38,6 +38,7 @@ com.yanajiki.application.bingoapp/
 - **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
 - **PlayerEntity** has @ManyToOne to RoomEntity. Unique constraint on (name, room_id). Player list is creator-only (REST), join broadcasts to `/room/{sessionCode}/players` (WS).
 - **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count minimum 2, capped by available (undrawn) numbers. AUTOMATIC rooms only.
+- **RoomCleanupScheduler** runs on a fixed interval (default 1h, configurable via `room.cleanup.interval-ms`). Deletes rooms whose `updateDateTime` is older than the TTL (default 24h, configurable via `room.cleanup.ttl-hours`). Any entity save (draw, player join, etc.) resets the TTL via `@UpdateTimestamp`. Timestamps use `Instant` (UTC). No API endpoints — fully internal.
 
 ## API Endpoints
 | Method | Path | Description | Auth |

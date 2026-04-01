@@ -1,6 +1,6 @@
 # Feature: Room Expiration
 
-**Status**: ready
+**Status**: done
 **Blocked by feature**: —
 **Branch**: feature/room-expiration
 
@@ -8,10 +8,10 @@
 
 | ID | Task | Status | Blocked By | Assignee |
 |----|------|--------|------------|----------|
-| 001 | Migrate timestamps from LocalDateTime to Instant | ready | — | — |
-| 002 | Add repository query for expired rooms | blocked | 001 | — |
-| 003 | RoomCleanupScheduler + @EnableScheduling | blocked | 002 | — |
-| 004 | Integration test for room expiration | blocked | 003 | — |
+| 001 | Migrate timestamps from LocalDateTime to Instant | done | — | sonnet |
+| 002 | Add repository query for expired rooms | done | 001 | sonnet |
+| 003 | RoomCleanupScheduler + @EnableScheduling | done | 002 | sonnet |
+| 004 | Integration test for room expiration | done | 003 | sonnet |
 
 ## Decisions
 - Expiration based on `updateDateTime` (updated by Hibernate `@UpdateTimestamp` on every save, i.e. every draw)
