@@ -39,7 +39,6 @@ public class TiebreakService {
 
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 	private static final int MIN_PLAYERS = 2;
-	private static final int MAX_PLAYERS = 6;
 
 	/**
 	 * Starts a tiebreaker for the given room.
@@ -50,7 +49,7 @@ public class TiebreakService {
 	 *
 	 * @param sessionCode the room's session code
 	 * @param creatorHash the creator's authentication hash
-	 * @param playerCount number of contestants (2–6)
+	 * @param playerCount number of contestants (must be at least 2 and not exceed available numbers)
 	 * @return a {@link TiebreakDTO} with status {@code STARTED}
 	 * @throws RoomNotFoundException    if the room is not found or hash is invalid
 	 * @throws IllegalArgumentException if the room is not AUTOMATIC or player count is out of range
@@ -66,9 +65,19 @@ public class TiebreakService {
 			throw new IllegalArgumentException("Tiebreaker is only available for automatic draw mode rooms");
 		}
 
-		if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+		if (playerCount < MIN_PLAYERS) {
 			throw new IllegalArgumentException(
-				"Player count must be between " + MIN_PLAYERS + " and " + MAX_PLAYERS + ", got: " + playerCount);
+				"Player count must be at least " + MIN_PLAYERS + ", got: " + playerCount);
+		}
+
+		long availableNumbers = IntStream.rangeClosed(
+				numberLabelMapper.getMinNumber(), numberLabelMapper.getMaxNumber())
+			.filter(n -> !entity.getDrawnNumbers().contains(n))
+			.count();
+
+		if (playerCount > availableNumbers) {
+			throw new IllegalArgumentException(
+				"Player count (" + playerCount + ") exceeds available numbers (" + availableNumbers + ")");
 		}
 
 		if (activeTiebreaks.containsKey(sessionCode)) {

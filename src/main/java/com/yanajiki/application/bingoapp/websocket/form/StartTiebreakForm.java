@@ -30,7 +30,7 @@ public class StartTiebreakForm {
 	@JsonProperty("creator-hash")
 	private String creatorHash;
 
-	/** Number of contestants competing in the tiebreaker (2–6). */
+	/** Number of contestants competing in the tiebreaker (minimum 2, capped by available numbers). */
 	@JsonProperty("player-count")
 	private int playerCount;
 }

@@ -37,7 +37,7 @@ com.yanajiki.application.bingoapp/
 - **creatorHash** (UUID) = privileged identity; **sessionCode** (6-char) = public room ID. Two DTO views hide creatorHash from players via @JsonInclude(NON_NULL).
 - **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
 - **PlayerEntity** has @ManyToOne to RoomEntity. Unique constraint on (name, room_id). Player list is creator-only (REST), join broadcasts to `/room/{sessionCode}/players` (WS).
-- **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count 2–6, AUTOMATIC rooms only.
+- **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count minimum 2, capped by available (undrawn) numbers. AUTOMATIC rooms only.
 
 ## API Endpoints
 | Method | Path | Description | Auth |

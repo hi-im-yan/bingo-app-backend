@@ -44,11 +44,18 @@ class TiebreakServiceTest {
 	// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 	/**
+	 * Stubs the mapper range only (1–75). Use when no draws happen (e.g. start/validation tests).
+	 */
+	private void stubMapperRange() {
+		when(numberLabelMapper.getMinNumber()).thenReturn(1);
+		when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+	}
+
+	/**
 	 * Stubs the mapper to behave like standard bingo (range 1–75, label "X-{n}").
 	 */
 	private void stubStandardMapper() {
-		when(numberLabelMapper.getMinNumber()).thenReturn(1);
-		when(numberLabelMapper.getMaxNumber()).thenReturn(75);
+		stubMapperRange();
 		when(numberLabelMapper.toLabel(anyInt())).thenAnswer(inv -> "X-" + inv.getArgument(0));
 	}
 
@@ -73,7 +80,7 @@ class TiebreakServiceTest {
 		void success_createsTiebreaker() {
 			// given
 			RoomEntity entity = stubAutomaticRoom("Tiebreak Room");
-			// No mapper stubs needed — DTO.from with empty draws doesn't call toLabel
+			stubMapperRange();
 
 			// when
 			TiebreakDTO dto = tiebreakService.startTiebreak(
@@ -118,24 +125,43 @@ class TiebreakServiceTest {
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
 				entity.getSessionCode(), entity.getCreatorHash(), 1))
 				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessageContaining("between 2 and 6");
+				.hasMessageContaining("at least 2");
 		}
 
 		@Test
-		@DisplayName("player count above 6 — throws IllegalArgumentException")
-		void playerCountAboveMax_throwsIllegalArgumentException() {
-			RoomEntity entity = stubAutomaticRoom("High Count Room");
+		@DisplayName("player count exceeds available pool — throws IllegalArgumentException")
+		void playerCountExceedsPool_throwsIllegalArgumentException() {
+			RoomEntity entity = stubAutomaticRoom("Pool Exhausted Room");
+			stubMapperRange();
+			// Draw 74 of 75 numbers — only 1 left, but requesting 2 players
+			for (int i = 1; i <= 74; i++) {
+				entity.addDrawnNumber(i);
+			}
 
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
-				entity.getSessionCode(), entity.getCreatorHash(), 7))
+				entity.getSessionCode(), entity.getCreatorHash(), 2))
 				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessageContaining("between 2 and 6");
+				.hasMessageContaining("available numbers");
+		}
+
+		@Test
+		@DisplayName("large player count within pool — succeeds")
+		void largePlayerCount_withinPool_succeeds() {
+			RoomEntity entity = stubAutomaticRoom("Large Tiebreak Room");
+			stubMapperRange();
+
+			TiebreakDTO dto = tiebreakService.startTiebreak(
+				entity.getSessionCode(), entity.getCreatorHash(), 20);
+
+			assertThat(dto.status()).isEqualTo("STARTED");
+			assertThat(dto.playerCount()).isEqualTo(20);
 		}
 
 		@Test
 		@DisplayName("already active tiebreaker — throws IllegalStateException")
 		void alreadyActive_throwsIllegalStateException() {
 			RoomEntity entity = stubAutomaticRoom("Active Tiebreak Room");
+			stubMapperRange();
 
 			tiebreakService.startTiebreak(entity.getSessionCode(), entity.getCreatorHash(), 2);
 
@@ -149,6 +175,7 @@ class TiebreakServiceTest {
 		@DisplayName("can start new tiebreaker after clearing previous one")
 		void canStartNewAfterClear() {
 			RoomEntity entity = stubAutomaticRoom("Sequential Tiebreak Room");
+			stubMapperRange();
 
 			tiebreakService.startTiebreak(entity.getSessionCode(), entity.getCreatorHash(), 2);
 			tiebreakService.clearTiebreak(entity.getSessionCode());
@@ -227,6 +254,7 @@ class TiebreakServiceTest {
 		@DisplayName("slot below 1 — throws IllegalArgumentException")
 		void slotBelowMin_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Bad Slot Room");
+			stubMapperRange();
 
 			tiebreakService.startTiebreak(entity.getSessionCode(), entity.getCreatorHash(), 3);
 
@@ -240,6 +268,7 @@ class TiebreakServiceTest {
 		@DisplayName("slot above playerCount — throws IllegalArgumentException")
 		void slotAboveMax_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Over Slot Room");
+			stubMapperRange();
 
 			tiebreakService.startTiebreak(entity.getSessionCode(), entity.getCreatorHash(), 3);
 
@@ -298,6 +327,7 @@ class TiebreakServiceTest {
 		@DisplayName("removes active tiebreaker state")
 		void removesActiveState() {
 			RoomEntity entity = stubAutomaticRoom("Clear Room");
+			stubMapperRange();
 
 			tiebreakService.startTiebreak(entity.getSessionCode(), entity.getCreatorHash(), 2);
 			assertThat(tiebreakService.hasActiveTiebreak(entity.getSessionCode())).isTrue();
