@@ -3,6 +3,7 @@ package com.yanajiki.application.bingoapp.service;
 import com.yanajiki.application.bingoapp.api.response.TiebreakDTO;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
@@ -105,7 +106,7 @@ class TiebreakServiceTest {
 		}
 
 		@Test
-		@DisplayName("wrong mode (MANUAL) — throws IllegalArgumentException")
+		@DisplayName("wrong mode (MANUAL) — throws BadRequestException")
 		void manualRoom_throwsIllegalArgumentException() {
 			RoomEntity entity = RoomEntity.createEntityObject("Manual Room", null);
 			when(roomRepository.findBySessionCodeAndCreatorHash(entity.getSessionCode(), entity.getCreatorHash()))
@@ -113,23 +114,23 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
 				entity.getSessionCode(), entity.getCreatorHash(), 3))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("automatic");
 		}
 
 		@Test
-		@DisplayName("player count below 2 — throws IllegalArgumentException")
+		@DisplayName("player count below 2 — throws BadRequestException")
 		void playerCountBelowMin_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Low Count Room");
 
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
 				entity.getSessionCode(), entity.getCreatorHash(), 1))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("at least 2");
 		}
 
 		@Test
-		@DisplayName("player count exceeds available pool — throws IllegalArgumentException")
+		@DisplayName("player count exceeds available pool — throws BadRequestException")
 		void playerCountExceedsPool_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Pool Exhausted Room");
 			stubMapperRange();
@@ -140,7 +141,7 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
 				entity.getSessionCode(), entity.getCreatorHash(), 2))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("available numbers");
 		}
 
@@ -158,7 +159,7 @@ class TiebreakServiceTest {
 		}
 
 		@Test
-		@DisplayName("already active tiebreaker — throws IllegalStateException")
+		@DisplayName("already active tiebreaker — throws BadRequestException")
 		void alreadyActive_throwsIllegalStateException() {
 			RoomEntity entity = stubAutomaticRoom("Active Tiebreak Room");
 			stubMapperRange();
@@ -167,7 +168,7 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.startTiebreak(
 				entity.getSessionCode(), entity.getCreatorHash(), 3))
-				.isInstanceOf(IllegalStateException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("already has an active tiebreaker");
 		}
 
@@ -240,18 +241,18 @@ class TiebreakServiceTest {
 		}
 
 		@Test
-		@DisplayName("no active tiebreaker — throws IllegalStateException")
+		@DisplayName("no active tiebreaker — throws BadRequestException")
 		void noActiveTiebreak_throwsIllegalStateException() {
 			RoomEntity entity = stubAutomaticRoom("No Tiebreak Room");
 
 			assertThatThrownBy(() -> tiebreakService.drawForSlot(
 				entity.getSessionCode(), entity.getCreatorHash(), 1))
-				.isInstanceOf(IllegalStateException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("No active tiebreaker");
 		}
 
 		@Test
-		@DisplayName("slot below 1 — throws IllegalArgumentException")
+		@DisplayName("slot below 1 — throws BadRequestException")
 		void slotBelowMin_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Bad Slot Room");
 			stubMapperRange();
@@ -260,12 +261,12 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.drawForSlot(
 				entity.getSessionCode(), entity.getCreatorHash(), 0))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and");
 		}
 
 		@Test
-		@DisplayName("slot above playerCount — throws IllegalArgumentException")
+		@DisplayName("slot above playerCount — throws BadRequestException")
 		void slotAboveMax_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Over Slot Room");
 			stubMapperRange();
@@ -274,12 +275,12 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.drawForSlot(
 				entity.getSessionCode(), entity.getCreatorHash(), 4))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 3");
 		}
 
 		@Test
-		@DisplayName("slot already drawn — throws IllegalArgumentException")
+		@DisplayName("slot already drawn — throws BadRequestException")
 		void slotAlreadyDrawn_throwsIllegalArgumentException() {
 			RoomEntity entity = stubAutomaticRoom("Dup Slot Room");
 			stubStandardMapper();
@@ -289,7 +290,7 @@ class TiebreakServiceTest {
 
 			assertThatThrownBy(() -> tiebreakService.drawForSlot(
 				entity.getSessionCode(), entity.getCreatorHash(), 1))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("already drawn");
 		}
 

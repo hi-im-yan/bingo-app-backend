@@ -151,6 +151,7 @@ class PlayerJoinIntegrationTest {
 			.then()
 				.statusCode(404)
 				.body("status", equalTo(404))
+				.body("code", equalTo("ROOM_NOT_FOUND"))
 				.body("message", notNullValue());
 		}
 
@@ -172,6 +173,7 @@ class PlayerJoinIntegrationTest {
 			.then()
 				.statusCode(404)
 				.body("status", equalTo(404))
+				.body("code", equalTo("ROOM_NOT_FOUND"))
 				.body("message", notNullValue());
 		}
 	}

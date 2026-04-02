@@ -8,14 +8,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * Maps to HTTP 404 NOT FOUND.
  */
 @ResponseStatus(HttpStatus.NOT_FOUND)
-public class RoomNotFoundException extends RuntimeException {
+public class RoomNotFoundException extends BingoException {
 
 	/**
-	 * Constructs a new RoomNotFoundException with the given message.
+	 * Constructs a new {@code RoomNotFoundException} with the given error code and message.
 	 *
-	 * @param message description of the missing resource
+	 * @param errorCode machine-readable code identifying the error
+	 * @param message   human-readable description of the missing resource
 	 */
-	public RoomNotFoundException(String message) {
-		super(message);
+	public RoomNotFoundException(ErrorCode errorCode, String message) {
+		super(errorCode, message);
 	}
 }

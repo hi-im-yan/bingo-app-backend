@@ -1,15 +1,17 @@
 package com.yanajiki.application.bingoapp.exception;
 
-import com.yanajiki.application.bingoapp.api.response.ApiResponse;
+import com.yanajiki.application.bingoapp.api.response.ErrorResponse;
+import com.yanajiki.application.bingoapp.api.response.FieldError;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -17,7 +19,7 @@ import java.util.stream.Collectors;
  * <p>
  * Centralises HTTP error response construction, removing the need for per-controller
  * {@code @ExceptionHandler} methods. Each handler maps a specific exception type to the
- * appropriate HTTP status and wraps the error detail in an {@link ApiResponse}.
+ * appropriate HTTP status and wraps the error detail in an {@link ErrorResponse}.
  * </p>
  */
 @RestControllerAdvice
@@ -25,74 +27,44 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
 	/**
-	 * Handles {@link ConflictException}, returning HTTP 409 CONFLICT.
+	 * Handles all {@link BingoException} subtypes (ConflictException, RoomNotFoundException,
+	 * BadRequestException), extracting the machine-readable {@link ErrorCode} from the exception.
 	 *
-	 * @param ex the conflict exception thrown by the service layer
-	 * @return a {@link ResponseEntity} containing the error status and message
+	 * @param ex the bingo domain exception thrown by the service layer
+	 * @return a {@link ResponseEntity} containing the structured error response
 	 */
-	@ExceptionHandler(ConflictException.class)
-	public ResponseEntity<ApiResponse> handleConflict(ConflictException ex) {
-		int httpStatus = HttpStatus.CONFLICT.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
+	@ExceptionHandler(BingoException.class)
+	public ResponseEntity<ErrorResponse> handleBingoException(BingoException ex) {
+		HttpStatus status = resolveStatus(ex);
+		return ResponseEntity
+				.status(status)
+				.body(new ErrorResponse(status.value(), ex.getErrorCode().name(), ex.getMessage()));
 	}
 
 	/**
-	 * Handles {@link RoomNotFoundException}, returning HTTP 404 NOT FOUND.
-	 *
-	 * @param ex the not-found exception thrown when a room cannot be located
-	 * @return a {@link ResponseEntity} containing the error status and message
-	 */
-	@ExceptionHandler(RoomNotFoundException.class)
-	public ResponseEntity<ApiResponse> handleNotFound(RoomNotFoundException ex) {
-		int httpStatus = HttpStatus.NOT_FOUND.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
-	}
-
-	/**
-	 * Handles {@link MethodArgumentNotValidException}, returning HTTP 400 BAD REQUEST.
+	 * Handles {@link MethodArgumentNotValidException}, returning HTTP 400 BAD REQUEST
+	 * with per-field validation details.
 	 * <p>
-	 * Collects all field-level validation errors and joins them into a single message
-	 * in the form {@code "fieldName: error message; ..."}.
+	 * Collects all field-level validation errors into a {@code fields} array and joins
+	 * them into a single message in the form {@code "fieldName: error message; ..."}.
 	 * </p>
 	 *
 	 * @param ex the validation exception produced by Bean Validation
-	 * @return a {@link ResponseEntity} containing the error status and aggregated field errors
+	 * @return a {@link ResponseEntity} containing the error status, code, and field details
 	 */
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<ApiResponse> handleValidation(MethodArgumentNotValidException ex) {
-		int httpStatus = HttpStatus.BAD_REQUEST.value();
+	public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+		List<FieldError> fields = ex.getBindingResult().getFieldErrors().stream()
+				.map(fe -> new FieldError(fe.getField(), mapValidationCode(fe)))
+				.toList();
+
 		String message = ex.getBindingResult().getFieldErrors().stream()
-				.map(FieldError::getDefaultMessage)
+				.map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
 				.collect(Collectors.joining("; "));
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, message));
-	}
 
-	/**
-	 * Handles {@link IllegalArgumentException}, returning HTTP 400 BAD REQUEST.
-	 *
-	 * @param ex the illegal argument exception
-	 * @return a {@link ResponseEntity} containing the error status and message
-	 */
-	@ExceptionHandler(IllegalArgumentException.class)
-	public ResponseEntity<ApiResponse> handleIllegalArgument(IllegalArgumentException ex) {
-		int httpStatus = HttpStatus.BAD_REQUEST.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
-	}
-
-	/**
-	 * Handles {@link IllegalStateException}, returning HTTP 400 BAD REQUEST.
-	 * <p>
-	 * Used when the current state of the resource makes the operation invalid —
-	 * for example, attempting to draw a number when all numbers have already been drawn.
-	 * </p>
-	 *
-	 * @param ex the illegal state exception thrown by the service layer
-	 * @return a {@link ResponseEntity} containing the error status and message
-	 */
-	@ExceptionHandler(IllegalStateException.class)
-	public ResponseEntity<ApiResponse> handleIllegalState(IllegalStateException ex) {
-		int httpStatus = HttpStatus.BAD_REQUEST.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
+		return ResponseEntity
+				.badRequest()
+				.body(new ErrorResponse(400, ErrorCode.VALIDATION_ERROR.name(), message, fields));
 	}
 
 	/**
@@ -106,9 +78,10 @@ public class GlobalExceptionHandler {
 	 * @return a {@link ResponseEntity} containing the error status and message
 	 */
 	@ExceptionHandler(NoResourceFoundException.class)
-	public ResponseEntity<ApiResponse> handleNoResourceFound(NoResourceFoundException ex) {
+	public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
 		int httpStatus = HttpStatus.NOT_FOUND.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, ex.getMessage()));
+		return ResponseEntity.status(httpStatus)
+				.body(new ErrorResponse(httpStatus, ErrorCode.ROOM_NOT_FOUND.name(), ex.getMessage()));
 	}
 
 	/**
@@ -122,9 +95,40 @@ public class GlobalExceptionHandler {
 	 * @return a {@link ResponseEntity} with a generic 500 error body
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiResponse> handleUnknown(Exception ex) {
+	public ResponseEntity<ErrorResponse> handleUnknown(Exception ex) {
 		log.error("UNKNOWN_ERROR:: {}", ex.getMessage(), ex);
 		int httpStatus = HttpStatus.INTERNAL_SERVER_ERROR.value();
-		return ResponseEntity.status(httpStatus).body(new ApiResponse(httpStatus, "If the error persists, open a ticket."));
+		return ResponseEntity.status(httpStatus)
+				.body(new ErrorResponse(httpStatus, ErrorCode.INTERNAL_ERROR.name(), "If the error persists, open a ticket."));
+	}
+
+	/**
+	 * Resolves the HTTP status from the {@link ResponseStatus} annotation on the exception class.
+	 *
+	 * @param ex the bingo exception
+	 * @return the resolved HTTP status, or 500 if no annotation is present
+	 */
+	private HttpStatus resolveStatus(BingoException ex) {
+		ResponseStatus annotation = ex.getClass().getAnnotation(ResponseStatus.class);
+		return annotation != null ? annotation.value() : HttpStatus.INTERNAL_SERVER_ERROR;
+	}
+
+	/**
+	 * Maps Spring's validation annotation code to a short field-level code.
+	 *
+	 * @param fe the Spring validation field error
+	 * @return the mapped code string (e.g. "NOT_BLANK", "SIZE", "MIN", "MAX")
+	 */
+	private String mapValidationCode(org.springframework.validation.FieldError fe) {
+		String code = fe.getCode();
+		if (code == null) return "INVALID";
+		return switch (code) {
+			case "NotBlank" -> "NOT_BLANK";
+			case "NotNull" -> "NOT_NULL";
+			case "Size" -> "SIZE";
+			case "Min" -> "MIN";
+			case "Max" -> "MAX";
+			default -> code.toUpperCase();
+		};
 	}
 }

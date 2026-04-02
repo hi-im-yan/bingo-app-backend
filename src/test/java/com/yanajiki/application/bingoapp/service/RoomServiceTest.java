@@ -7,6 +7,7 @@ import com.yanajiki.application.bingoapp.database.PlayerEntity;
 import com.yanajiki.application.bingoapp.database.PlayerRepository;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
@@ -357,10 +358,10 @@ class RoomServiceTest {
 		}
 
 		/**
-		 * Drawing 0 (below the 1–75 bingo range) must throw {@link IllegalArgumentException}.
+		 * Drawing 0 (below the 1–75 bingo range) must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("invalid number (0) — throws IllegalArgumentException")
+		@DisplayName("invalid number (0) — throws BadRequestException")
 		void invalidNumber_zero_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Range Room", null);
@@ -374,17 +375,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 0))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 75");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Drawing 76 (above the 1–75 bingo range) must throw {@link IllegalArgumentException}.
+		 * Drawing 76 (above the 1–75 bingo range) must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("invalid number (76) — throws IllegalArgumentException")
+		@DisplayName("invalid number (76) — throws BadRequestException")
 		void invalidNumber_aboveMax_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Range Room 2", null);
@@ -398,17 +399,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 76))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 75");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Drawing a number that has already been drawn must throw {@link IllegalArgumentException}.
+		 * Drawing a number that has already been drawn must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("duplicate number — throws IllegalArgumentException")
+		@DisplayName("duplicate number — throws BadRequestException")
 		void duplicateNumber_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Duplicate Draw Room", null);
@@ -423,18 +424,18 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 7))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("already been drawn");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Calling {@code drawNumber()} on an AUTOMATIC room must throw {@link IllegalArgumentException}
+		 * Calling {@code drawNumber()} on an AUTOMATIC room must throw {@link BadRequestException}
 		 * with a message indicating automatic draw mode is in use.
 		 */
 		@Test
-		@DisplayName("wrong mode (AUTOMATIC room) — throws IllegalArgumentException")
+		@DisplayName("wrong mode (AUTOMATIC room) — throws BadRequestException")
 		void automaticRoom_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Auto Room", null, DrawMode.AUTOMATIC);
@@ -446,7 +447,7 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawNumber(sessionCode, creatorHash, 10))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("This room uses automatic draw mode");
 
 			verify(repository, never()).save(any());
@@ -511,10 +512,10 @@ class RoomServiceTest {
 		}
 
 		/**
-		 * Correcting in an AUTOMATIC room must throw {@link IllegalArgumentException}.
+		 * Correcting in an AUTOMATIC room must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("wrong mode (AUTOMATIC) — throws IllegalArgumentException")
+		@DisplayName("wrong mode (AUTOMATIC) — throws BadRequestException")
 		void automaticRoom_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Auto Correct Room", null, DrawMode.AUTOMATIC);
@@ -527,17 +528,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 10))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("manual draw mode");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Correcting when no numbers have been drawn must throw {@link IllegalStateException}.
+		 * Correcting when no numbers have been drawn must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("no numbers drawn — throws IllegalStateException")
+		@DisplayName("no numbers drawn — throws BadRequestException")
 		void noNumbersDrawn_throwsIllegalStateException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Empty Draw Room", null);
@@ -549,17 +550,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 10))
-				.isInstanceOf(IllegalStateException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("No numbers have been drawn");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Correcting to a number below the valid range (0) must throw {@link IllegalArgumentException}.
+		 * Correcting to a number below the valid range (0) must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("new number out of range (0) — throws IllegalArgumentException")
+		@DisplayName("new number out of range (0) — throws BadRequestException")
 		void newNumberBelowRange_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Range Correct Room", null);
@@ -574,17 +575,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 0))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 75");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Correcting to a number above the valid range (76) must throw {@link IllegalArgumentException}.
+		 * Correcting to a number above the valid range (76) must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("new number out of range (76) — throws IllegalArgumentException")
+		@DisplayName("new number out of range (76) — throws BadRequestException")
 		void newNumberAboveRange_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Range Correct Room 2", null);
@@ -599,17 +600,17 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 76))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 75");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Correcting to a number already in the drawn list (not the last one) must throw {@link IllegalArgumentException}.
+		 * Correcting to a number already in the drawn list (not the last one) must throw {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("new number already drawn (duplicate) — throws IllegalArgumentException")
+		@DisplayName("new number already drawn (duplicate) — throws BadRequestException")
 		void duplicateNewNumber_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Duplicate Correct Room", null);
@@ -625,7 +626,7 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 5))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("already been drawn");
 
 			verify(repository, never()).save(any());
@@ -669,10 +670,10 @@ class RoomServiceTest {
 
 		/**
 		 * When all 75 numbers have already been drawn, {@code drawRandomNumber()} must throw
-		 * {@link IllegalStateException}.
+		 * {@link BadRequestException}.
 		 */
 		@Test
-		@DisplayName("all numbers drawn — throws IllegalStateException")
+		@DisplayName("all numbers drawn — throws BadRequestException")
 		void allNumbersDrawn_throwsIllegalStateException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Full Room", null, DrawMode.AUTOMATIC);
@@ -689,18 +690,18 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawRandomNumber(sessionCode, creatorHash))
-				.isInstanceOf(IllegalStateException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("All numbers have been drawn");
 
 			verify(repository, never()).save(any());
 		}
 
 		/**
-		 * Calling {@code drawRandomNumber()} on a MANUAL room must throw {@link IllegalArgumentException}
+		 * Calling {@code drawRandomNumber()} on a MANUAL room must throw {@link BadRequestException}
 		 * with a message indicating manual draw mode is in use.
 		 */
 		@Test
-		@DisplayName("wrong mode (MANUAL room) — throws IllegalArgumentException")
+		@DisplayName("wrong mode (MANUAL room) — throws BadRequestException")
 		void manualRoom_throwsIllegalArgumentException() {
 			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Manual Room", null);
@@ -712,7 +713,7 @@ class RoomServiceTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.drawRandomNumber(sessionCode, creatorHash))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("This room uses manual draw mode");
 
 			verify(repository, never()).save(any());

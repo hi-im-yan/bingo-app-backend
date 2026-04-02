@@ -5,6 +5,8 @@ import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
+import com.yanajiki.application.bingoapp.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,7 +60,7 @@ public class QrCodeService {
 
 		} catch (WriterException | IOException e) {
 			log.error("Failed to generate QR code for session code '{}'", sessionCode, e);
-			throw new IllegalStateException("Failed to generate QR code for session code: " + sessionCode, e);
+			throw new BadRequestException(ErrorCode.INTERNAL_ERROR, "Failed to generate QR code for session code: " + sessionCode);
 		}
 	}
 

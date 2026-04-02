@@ -256,6 +256,35 @@ Receives a `TiebreakDTO` on every tiebreaker event (start, each slot draw, finis
 
 ---
 
+### Subscribe — Errors (Personal Queue)
+
+```
+Destination: /user/queue/errors
+```
+
+Receives error responses when a WebSocket send fails. This is a user-specific queue — each client only receives their own errors. Subscribe to this destination immediately after connecting.
+
+```json
+{
+  "status": 400,
+  "code": "NUMBER_ALREADY_DRAWN",
+  "message": "Number 42 has already been drawn in this room"
+}
+```
+
+**JavaScript example:**
+```javascript
+stompClient.connect({}, () => {
+  stompClient.subscribe('/user/queue/errors', (message) => {
+    const error = JSON.parse(message.body);
+    console.error(`[${error.code}] ${error.message}`);
+    // Use error.code to distinguish error types programmatically
+  });
+});
+```
+
+---
+
 ### Send — Join Room
 
 ```
@@ -414,16 +443,31 @@ Destination: /app/tiebreak-draw
 
 ## Error Response Format
 
-All REST errors return an `ApiResponse`:
+All REST errors return an `ErrorResponse`:
+
+```json
+{
+  "status": 409,
+  "code": "ROOM_NAME_TAKEN",
+  "message": "Room already exists."
+}
+```
+
+For `VALIDATION_ERROR`, the response also includes a `fields` array with per-field details:
 
 ```json
 {
   "status": 400,
-  "message": "Human-readable error description"
+  "code": "VALIDATION_ERROR",
+  "message": "name: must not be blank; description: size must be between 0 and 255",
+  "fields": [
+    { "field": "name", "code": "NOT_BLANK" },
+    { "field": "description", "code": "SIZE" }
+  ]
 }
 ```
 
-WebSocket errors are delivered as STOMP ERROR frames with the error message in the frame body.
+WebSocket errors are delivered to the personal queue `/user/queue/errors` as an `ErrorResponse` JSON payload. Subscribe to this destination after connecting to receive errors from failed send operations.
 
 | Status | When |
 |--------|------|
@@ -431,6 +475,28 @@ WebSocket errors are delivered as STOMP ERROR frames with the error message in t
 | `404` | Room not found or invalid creator hash |
 | `409` | Room name or player name conflict |
 | `500` | Unexpected server error |
+
+### Error Code Summary
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `ROOM_NOT_FOUND` | 404 | Room doesn't exist or invalid creator hash |
+| `ROOM_NAME_TAKEN` | 409 | Room name already in use |
+| `PLAYER_NAME_TAKEN` | 409 | Player name already taken in room |
+| `DRAW_MODE_MISMATCH` | 400 | Operation not allowed for this room's draw mode |
+| `NUMBER_OUT_OF_RANGE` | 400 | Number outside valid range (1–75) |
+| `NUMBER_ALREADY_DRAWN` | 400 | Number was already drawn |
+| `ALL_NUMBERS_DRAWN` | 400 | All 75 numbers have been drawn |
+| `NO_NUMBERS_DRAWN` | 400 | No numbers drawn yet (can't correct) |
+| `TIEBREAK_INVALID_PLAYER_COUNT` | 400 | Player count below minimum (2) |
+| `TIEBREAK_NOT_ENOUGH_NUMBERS` | 400 | More players than available numbers |
+| `TIEBREAK_ALREADY_ACTIVE` | 400 | Tiebreaker already running |
+| `TIEBREAK_NOT_ACTIVE` | 400 | No active tiebreaker |
+| `TIEBREAK_INVALID_SLOT` | 400 | Slot number out of range |
+| `TIEBREAK_SLOT_ALREADY_DRAWN` | 400 | Slot already has a drawn number |
+| `TIEBREAK_NO_NUMBERS_REMAINING` | 400 | No undrawn numbers left for tiebreaker |
+| `VALIDATION_ERROR` | 400 | Form field validation failure |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
 
 ---
 
@@ -440,96 +506,96 @@ Every error the backend can return, organized by endpoint. Use the **message pat
 
 ### REST — Create Room (`POST /api/v1/room`)
 
-| Status | Message | Cause | Suggested UX |
-|--------|---------|-------|-------------|
-| 409 | `Room already exists.` | Room with the same name already exists | "A room with this name already exists. Choose a different name." |
-| 400 | `name: must not be blank` | Name field is empty/missing | Inline field validation — "Room name is required" |
-| 400 | `name: size must be between 0 and 255` | Name exceeds 255 characters | Inline field validation — "Room name is too long" |
-| 400 | `description: size must be between 0 and 255` | Description exceeds 255 characters | Inline field validation — "Description is too long" |
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 409 | `ROOM_NAME_TAKEN` | `Room already exists.` | Room with the same name already exists | "A room with this name already exists. Choose a different name." |
+| 400 | `VALIDATION_ERROR` | `name: must not be blank` | Name field is empty/missing | Inline field validation — "Room name is required" |
+| 400 | `VALIDATION_ERROR` | `name: size must be between 0 and 255` | Name exceeds 255 characters | Inline field validation — "Room name is too long" |
+| 400 | `VALIDATION_ERROR` | `description: size must be between 0 and 255` | Description exceeds 255 characters | Inline field validation — "Description is too long" |
 
 > **Note:** Validation errors may combine multiple fields separated by `; ` (e.g. `name: must not be blank; description: size must be between 0 and 255`).
 
 ### REST — Get Room (`GET /api/v1/room/{session-code}`)
 
-| Status | Message | Cause | Suggested UX |
-|--------|---------|-------|-------------|
-| 404 | `not found` | Session code doesn't exist, or invalid creator hash provided | "Room not found — it may have expired or the code is incorrect." |
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 404 | `ROOM_NOT_FOUND` | `not found` | Session code doesn't exist, or invalid creator hash provided | "Room not found — it may have expired or the code is incorrect." |
 
 ### REST — Delete Room (`DELETE /api/v1/room/{session-code}`)
 
-| Status | Message | Cause | Suggested UX |
-|--------|---------|-------|-------------|
-| 404 | `not found` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to delete it." |
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 404 | `ROOM_NOT_FOUND` | `not found` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to delete it." |
 
 ### REST — List Players (`GET /api/v1/room/{session-code}/players`)
 
-| Status | Message | Cause | Suggested UX |
-|--------|---------|-------|-------------|
-| 404 | `Room not found or invalid creator hash` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to view players." |
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 404 | `ROOM_NOT_FOUND` | `Room not found or invalid creator hash` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to view players." |
 
 ### REST — QR Code (`GET /api/v1/room/{session-code}/qrcode`)
 
-| Status | Message | Cause | Suggested UX |
-|--------|---------|-------|-------------|
-| 404 | `not found` | Session code doesn't exist | "Room not found." |
-| 500 | `If the error persists, open a ticket.` | QR code generation failed internally | "Could not generate QR code. Try again later." |
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 404 | `ROOM_NOT_FOUND` | `not found` | Session code doesn't exist | "Room not found." |
+| 500 | `INTERNAL_ERROR` | `If the error persists, open a ticket.` | QR code generation failed internally | "Could not generate QR code. Try again later." |
 
 ### WebSocket — Join Room (`/app/join-room`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found with session code: {sessionCode}` | Invalid session code | "Room not found — check the code and try again." |
-| `Player name '{playerName}' is already taken in this room` | Duplicate player name in room | "That name is taken. Choose a different name." |
-| `playerName: must not be blank` | Player name empty | Inline validation — "Name is required" |
-| `playerName: size must be between 0 and 50` | Player name too long | Inline validation — "Name must be 50 characters or less" |
-| `sessionCode: must not be blank` | Session code empty | Inline validation — "Session code is required" |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found with session code: {sessionCode}` | Invalid session code | "Room not found — check the code and try again." |
+| `PLAYER_NAME_TAKEN` | `Player name '{playerName}' is already taken in this room` | Duplicate player name in room | "That name is taken. Choose a different name." |
+| `VALIDATION_ERROR` | `playerName: must not be blank` | Player name empty | Inline validation — "Name is required" |
+| `VALIDATION_ERROR` | `playerName: size must be between 0 and 50` | Player name too long | Inline validation — "Name must be 50 characters or less" |
+| `VALIDATION_ERROR` | `sessionCode: must not be blank` | Session code empty | Inline validation — "Session code is required" |
 
 ### WebSocket — Manual Draw (`/app/add-number`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found.` | Invalid session code or creator hash | "Room not found." |
-| `This room uses automatic draw mode` | Tried manual draw on an AUTOMATIC room | "This room uses automatic draws. Use the Draw Next button instead." |
-| `Drawn number must be between {min} and {max}, got: {number}` | Number outside 1–75 range | "Invalid number — must be between 1 and 75." |
-| `Number {number} has already been drawn in this room` | Number was already drawn | "That number has already been drawn." (disable it on the board) |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found.` | Invalid session code or creator hash | "Room not found." |
+| `DRAW_MODE_MISMATCH` | `This room uses automatic draw mode` | Tried manual draw on an AUTOMATIC room | "This room uses automatic draws. Use the Draw Next button instead." |
+| `NUMBER_OUT_OF_RANGE` | `Drawn number must be between {min} and {max}, got: {number}` | Number outside 1–75 range | "Invalid number — must be between 1 and 75." |
+| `NUMBER_ALREADY_DRAWN` | `Number {number} has already been drawn in this room` | Number was already drawn | "That number has already been drawn." (disable it on the board) |
 
 ### WebSocket — Automatic Draw (`/app/draw-number`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found` | Invalid session code or creator hash | "Room not found." |
-| `This room uses manual draw mode` | Tried auto draw on a MANUAL room | "This room uses manual draws. Select a number from the board." |
-| `All numbers have been drawn` | No undrawn numbers remain (all 75 drawn) | "All numbers have been drawn! The game is complete." (disable draw button) |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found` | Invalid session code or creator hash | "Room not found." |
+| `DRAW_MODE_MISMATCH` | `This room uses manual draw mode` | Tried auto draw on a MANUAL room | "This room uses manual draws. Select a number from the board." |
+| `ALL_NUMBERS_DRAWN` | `All numbers have been drawn` | No undrawn numbers remain (all 75 drawn) | "All numbers have been drawn! The game is complete." (disable draw button) |
 
 ### WebSocket — Correct Last Number (`/app/correct-number`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found.` | Invalid session code or creator hash | "Room not found." |
-| `Number correction is only available for manual draw mode rooms` | Tried correction on AUTOMATIC room | N/A — hide correction UI for automatic rooms |
-| `No numbers have been drawn yet` | No drawn numbers to correct | "No numbers to correct yet." |
-| `Drawn number must be between {min} and {max}, got: {number}` | Corrected number outside 1–75 | "Invalid number — must be between 1 and 75." |
-| `Number {number} has already been drawn in this room` | Corrected number already in drawn pool | "That number has already been drawn. Pick a different one." |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found.` | Invalid session code or creator hash | "Room not found." |
+| `DRAW_MODE_MISMATCH` | `Number correction is only available for manual draw mode rooms` | Tried correction on AUTOMATIC room | N/A — hide correction UI for automatic rooms |
+| `NO_NUMBERS_DRAWN` | `No numbers have been drawn yet` | No drawn numbers to correct | "No numbers to correct yet." |
+| `NUMBER_OUT_OF_RANGE` | `Drawn number must be between {min} and {max}, got: {number}` | Corrected number outside 1–75 | "Invalid number — must be between 1 and 75." |
+| `NUMBER_ALREADY_DRAWN` | `Number {number} has already been drawn in this room` | Corrected number already in drawn pool | "That number has already been drawn. Pick a different one." |
 
 ### WebSocket — Start Tiebreaker (`/app/start-tiebreak`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found` | Invalid session code or creator hash | "Room not found." |
-| `Tiebreaker is only available for automatic draw mode rooms` | Tried on MANUAL room | N/A — hide tiebreaker UI for manual rooms |
-| `Player count must be at least 2, got: {playerCount}` | Player count < 2 | "Tiebreaker needs at least 2 players." |
-| `Player count ({playerCount}) exceeds available numbers ({availableNumbers})` | More players than remaining undrawn numbers | "Not enough numbers remaining for {playerCount} players." |
-| `Room '{sessionCode}' already has an active tiebreaker` | Tiebreaker already running | "A tiebreaker is already in progress. Finish it first." |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found` | Invalid session code or creator hash | "Room not found." |
+| `DRAW_MODE_MISMATCH` | `Tiebreaker is only available for automatic draw mode rooms` | Tried on MANUAL room | N/A — hide tiebreaker UI for manual rooms |
+| `TIEBREAK_INVALID_PLAYER_COUNT` | `Player count must be at least 2, got: {playerCount}` | Player count < 2 | "Tiebreaker needs at least 2 players." |
+| `TIEBREAK_NOT_ENOUGH_NUMBERS` | `Player count ({playerCount}) exceeds available numbers ({availableNumbers})` | More players than remaining undrawn numbers | "Not enough numbers remaining for {playerCount} players." |
+| `TIEBREAK_ALREADY_ACTIVE` | `Room '{sessionCode}' already has an active tiebreaker` | Tiebreaker already running | "A tiebreaker is already in progress. Finish it first." |
 
 ### WebSocket — Tiebreaker Draw (`/app/tiebreak-draw`)
 
-| Message | Cause | Suggested UX |
-|---------|-------|-------------|
-| `Room not found` | Invalid session code or creator hash | "Room not found." |
-| `No active tiebreaker for room '{sessionCode}'` | No tiebreaker started | "No tiebreaker is active. Start one first." |
-| `Slot must be between 1 and {playerCount}, got: {slot}` | Invalid slot number | "Invalid player slot." |
-| `Slot {slot} has already drawn` | Slot already used | "This player has already drawn." (disable the slot button) |
-| `No numbers remaining for tiebreaker draw` | Pool exhausted (edge case) | "No numbers remaining for the tiebreaker." |
+| Code | Message | Cause | Suggested UX |
+|------|---------|-------|-------------|
+| `ROOM_NOT_FOUND` | `Room not found` | Invalid session code or creator hash | "Room not found." |
+| `TIEBREAK_NOT_ACTIVE` | `No active tiebreaker for room '{sessionCode}'` | No tiebreaker started | "No tiebreaker is active. Start one first." |
+| `TIEBREAK_INVALID_SLOT` | `Slot must be between 1 and {playerCount}, got: {slot}` | Invalid slot number | "Invalid player slot." |
+| `TIEBREAK_SLOT_ALREADY_DRAWN` | `Slot {slot} has already drawn` | Slot already used | "This player has already drawn." (disable the slot button) |
+| `TIEBREAK_NO_NUMBERS_REMAINING` | `No numbers remaining for tiebreaker draw` | Pool exhausted (edge case) | "No numbers remaining for the tiebreaker." |
 
 ### Validation Errors (All Endpoints)
 
@@ -553,9 +619,9 @@ Multiple field errors are joined with `; `. Parse on `; ` to show per-field erro
 
 Any unhandled server error returns:
 
-| Status | Message |
-|--------|---------|
-| 500 | `If the error persists, open a ticket.` |
+| Status | Code | Message |
+|--------|------|---------|
+| 500 | `INTERNAL_ERROR` | `If the error persists, open a ticket.` |
 
 This indicates a bug. Log the full response for debugging.
 
@@ -710,12 +776,19 @@ interface JoinRoomForm {
 }
 ```
 
-### ApiResponse (Error)
+### ErrorResponse
 
 ```typescript
-interface ApiResponse {
+interface ErrorResponse {
   status: number;
-  message: string;
+  code: string;               // SCREAMING_SNAKE_CASE error code
+  message: string;            // human-readable, for debugging
+  fields?: FieldError[];      // only present for VALIDATION_ERROR
+}
+
+interface FieldError {
+  field: string;              // form field name
+  code: string;               // e.g. "NOT_BLANK", "SIZE", "MIN", "MAX"
 }
 ```
 
@@ -737,7 +810,7 @@ Rooms are **automatically deleted** after 24 hours of inactivity. Any mutation (
 1. **Create room** → store `creatorHash` in localStorage, `sessionCode` for sharing
 2. **Share room** → give players the `sessionCode` (or QR code URL)
 3. **Players join** → `GET /api/v1/room/{sessionCode}` (no auth), then send `/app/join-room` via WS
-4. **Connect WebSocket** → SockJS to `/bingo-connect`, subscribe to `/room/{sessionCode}` and `/room/{sessionCode}/players`
+4. **Connect WebSocket** → SockJS to `/bingo-connect`, subscribe to `/room/{sessionCode}`, `/room/{sessionCode}/players`, and `/user/queue/errors`
 5. **Draw numbers** → creator sends to `/app/add-number` (manual) or `/app/draw-number` (auto)
 6. **Correct last number** → creator sends to `/app/correct-number` (manual rooms only)
 7. **All clients** receive real-time updates via `/room/{sessionCode}` subscription

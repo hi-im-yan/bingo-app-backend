@@ -3,6 +3,8 @@ package com.yanajiki.application.bingoapp.service;
 import com.yanajiki.application.bingoapp.api.response.TiebreakDTO;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
+import com.yanajiki.application.bingoapp.exception.ErrorCode;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
@@ -59,14 +61,14 @@ public class TiebreakService {
 		log.info("Starting tiebreaker for room '{}' with {} players", sessionCode, playerCount);
 
 		RoomEntity entity = roomRepository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-			.orElseThrow(() -> new RoomNotFoundException("Room not found"));
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found"));
 
 		if (entity.getDrawMode() != DrawMode.AUTOMATIC) {
-			throw new IllegalArgumentException("Tiebreaker is only available for automatic draw mode rooms");
+			throw new BadRequestException(ErrorCode.DRAW_MODE_MISMATCH, "Tiebreaker is only available for automatic draw mode rooms");
 		}
 
 		if (playerCount < MIN_PLAYERS) {
-			throw new IllegalArgumentException(
+			throw new BadRequestException(ErrorCode.TIEBREAK_INVALID_PLAYER_COUNT,
 				"Player count must be at least " + MIN_PLAYERS + ", got: " + playerCount);
 		}
 
@@ -76,12 +78,12 @@ public class TiebreakService {
 			.count();
 
 		if (playerCount > availableNumbers) {
-			throw new IllegalArgumentException(
+			throw new BadRequestException(ErrorCode.TIEBREAK_NOT_ENOUGH_NUMBERS,
 				"Player count (" + playerCount + ") exceeds available numbers (" + availableNumbers + ")");
 		}
 
 		if (activeTiebreaks.containsKey(sessionCode)) {
-			throw new IllegalStateException("Room '" + sessionCode + "' already has an active tiebreaker");
+			throw new BadRequestException(ErrorCode.TIEBREAK_ALREADY_ACTIVE, "Room '" + sessionCode + "' already has an active tiebreaker");
 		}
 
 		TiebreakState state = new TiebreakState(playerCount);
@@ -111,20 +113,20 @@ public class TiebreakService {
 		log.info("Tiebreaker draw for room '{}', slot {}", sessionCode, slot);
 
 		RoomEntity entity = roomRepository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-			.orElseThrow(() -> new RoomNotFoundException("Room not found"));
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found"));
 
 		TiebreakState state = activeTiebreaks.get(sessionCode);
 		if (state == null) {
-			throw new IllegalStateException("No active tiebreaker for room '" + sessionCode + "'");
+			throw new BadRequestException(ErrorCode.TIEBREAK_NOT_ACTIVE, "No active tiebreaker for room '" + sessionCode + "'");
 		}
 
 		if (slot < 1 || slot > state.getPlayerCount()) {
-			throw new IllegalArgumentException(
+			throw new BadRequestException(ErrorCode.TIEBREAK_INVALID_SLOT,
 				"Slot must be between 1 and " + state.getPlayerCount() + ", got: " + slot);
 		}
 
 		if (state.isSlotDrawn(slot)) {
-			throw new IllegalArgumentException("Slot " + slot + " has already drawn");
+			throw new BadRequestException(ErrorCode.TIEBREAK_SLOT_ALREADY_DRAWN, "Slot " + slot + " has already drawn");
 		}
 
 		int number = selectTiebreakNumber(entity, state);
@@ -173,7 +175,7 @@ public class TiebreakService {
 			.toList();
 
 		if (remaining.isEmpty()) {
-			throw new IllegalStateException("No numbers remaining for tiebreaker draw");
+			throw new BadRequestException(ErrorCode.TIEBREAK_NO_NUMBERS_REMAINING, "No numbers remaining for tiebreaker draw");
 		}
 
 		return remaining.get(SECURE_RANDOM.nextInt(remaining.size()));

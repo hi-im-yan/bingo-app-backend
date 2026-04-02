@@ -127,6 +127,7 @@ class RoomControllerIntegrationTest {
 		.then()
 			.statusCode(409)
 			.body("status", equalTo(409))
+			.body("code", equalTo("ROOM_NAME_TAKEN"))
 			.body("message", notNullValue());
 	}
 
@@ -149,6 +150,7 @@ class RoomControllerIntegrationTest {
 		.then()
 			.statusCode(400)
 			.body("status", equalTo(400))
+			.body("code", equalTo("VALIDATION_ERROR"))
 			.body("message", notNullValue());
 	}
 
@@ -233,6 +235,7 @@ class RoomControllerIntegrationTest {
 		.then()
 			.statusCode(404)
 			.body("status", equalTo(404))
+			.body("code", equalTo("ROOM_NOT_FOUND"))
 			.body("message", notNullValue());
 	}
 
@@ -282,6 +285,7 @@ class RoomControllerIntegrationTest {
 		.then()
 			.statusCode(404)
 			.body("status", equalTo(404))
+			.body("code", equalTo("ROOM_NOT_FOUND"))
 			.body("message", notNullValue());
 	}
 
@@ -328,6 +332,7 @@ class RoomControllerIntegrationTest {
 		.then()
 			.statusCode(404)
 			.body("status", equalTo(404))
+			.body("code", equalTo("ROOM_NOT_FOUND"))
 			.body("message", notNullValue());
 	}
 

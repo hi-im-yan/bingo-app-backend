@@ -2,6 +2,7 @@ package com.yanajiki.application.bingoapp.service;
 
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import org.junit.jupiter.api.AfterEach;
@@ -109,7 +110,7 @@ class NumberCorrectionIntegrationTest {
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(
 					saved.getSessionCode(), saved.getCreatorHash(), 10))
-				.isInstanceOf(IllegalStateException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("No numbers have been drawn");
 		}
 
@@ -126,7 +127,7 @@ class NumberCorrectionIntegrationTest {
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(
 					saved.getSessionCode(), saved.getCreatorHash(), 10))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("manual draw mode");
 		}
 
@@ -146,7 +147,7 @@ class NumberCorrectionIntegrationTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 5))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("already been drawn");
 		}
 
@@ -165,7 +166,7 @@ class NumberCorrectionIntegrationTest {
 
 			// when / then
 			assertThatThrownBy(() -> roomService.correctLastNumber(sessionCode, creatorHash, 0))
-				.isInstanceOf(IllegalArgumentException.class)
+				.isInstanceOf(BadRequestException.class)
 				.hasMessageContaining("between 1 and 75");
 		}
 

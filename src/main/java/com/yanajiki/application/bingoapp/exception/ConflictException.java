@@ -8,14 +8,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * Maps to HTTP 409 CONFLICT.
  */
 @ResponseStatus(HttpStatus.CONFLICT)
-public class ConflictException extends RuntimeException {
+public class ConflictException extends BingoException {
 
 	/**
-	 * Constructs a new ConflictException with the given message.
+	 * Constructs a new {@code ConflictException} with the given error code and message.
 	 *
-	 * @param message description of the conflict
+	 * @param errorCode machine-readable code identifying the conflict
+	 * @param message   human-readable description of the conflict
 	 */
-	public ConflictException(String message) {
-		super(message);
+	public ConflictException(ErrorCode errorCode, String message) {
+		super(errorCode, message);
 	}
 }

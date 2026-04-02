@@ -56,12 +56,14 @@ com.yanajiki.application.bingoapp/
 Draw WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
 Join WS endpoint broadcasts PlayerDTO to /room/{sessionCode}/players.
 Tiebreaker WS endpoints broadcast TiebreakDTO to /room/{sessionCode}/tiebreak.
+WS errors are sent to /user/queue/errors as ErrorResponse JSON (personal queue per client).
 
 ## Exception Pattern
-GlobalExceptionHandler maps: ConflictException→409, RoomNotFoundException→404,
-MethodArgumentNotValidException→400, IllegalArgumentException→400 (incl. draw mode mismatch),
-IllegalStateException→400 (e.g. all numbers drawn), generic Exception→500 (logged ERROR).
-Follow this pattern when adding new exceptions.
+- **BingoException** (abstract base) carries an `ErrorCode` enum. All domain exceptions extend it.
+- **BadRequestException** (400), **ConflictException** (409), **RoomNotFoundException** (404) — use these with the matching `ErrorCode`.
+- **GlobalExceptionHandler** returns `ErrorResponse(status, code, message, fields?)` for REST. Handles `BingoException`, `MethodArgumentNotValidException` (with `VALIDATION_ERROR` + per-field `fields` array), `NoResourceFoundException`, and catch-all `Exception`→500.
+- **WebSocketErrorHandler** (`@ControllerAdvice` + `@MessageExceptionHandler`) catches WS exceptions and sends `ErrorResponse` JSON to `/user/queue/errors` via `@SendToUser`.
+- When adding new errors: create an `ErrorCode` entry, throw a `BingoException` subtype with it. Never use raw `IllegalArgumentException`/`IllegalStateException` in services.
 
 ## Testing Conventions
 - Unit tests: Mockito mocks, @Nested + @DisplayName organization

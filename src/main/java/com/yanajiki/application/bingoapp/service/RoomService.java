@@ -8,7 +8,9 @@ import com.yanajiki.application.bingoapp.database.PlayerEntity;
 import com.yanajiki.application.bingoapp.database.PlayerRepository;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
+import com.yanajiki.application.bingoapp.exception.BadRequestException;
 import com.yanajiki.application.bingoapp.exception.ConflictException;
+import com.yanajiki.application.bingoapp.exception.ErrorCode;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
@@ -64,7 +66,7 @@ public class RoomService {
 
 		repository.findByName(form.getName())
 				.ifPresent(existing -> {
-					throw new ConflictException("Room already exists.");
+					throw new ConflictException(ErrorCode.ROOM_NAME_TAKEN, "Room already exists.");
 				});
 
 		DrawMode mode = form.getDrawMode() != null ? form.getDrawMode() : DrawMode.MANUAL;
@@ -93,13 +95,13 @@ public class RoomService {
 		if (StringUtils.isNotBlank(creatorHash)) {
 			log.debug("Looking up room '{}' with creator hash", sessionCode);
 			RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-					.orElseThrow(() -> new RoomNotFoundException("not found"));
+					.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "not found"));
 			return RoomDTO.fromEntityToCreator(entity, numberLabelMapper);
 		}
 
 		log.debug("Looking up room '{}' as player", sessionCode);
 		RoomEntity entity = repository.findBySessionCode(sessionCode)
-				.orElseThrow(() -> new RoomNotFoundException("not found"));
+				.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "not found"));
 		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
 	}
 
@@ -118,7 +120,7 @@ public class RoomService {
 		log.info("Deleting room with sessionCode '{}'", sessionCode);
 
 		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-				.orElseThrow(() -> new RoomNotFoundException("not found"));
+				.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "not found"));
 
 		repository.delete(entity);
 		log.info("Room '{}' deleted successfully", sessionCode);
@@ -145,10 +147,10 @@ public class RoomService {
 		log.info("Drawing number {} in room '{}'", number, sessionCode);
 
 		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-				.orElseThrow(() -> new RoomNotFoundException("Room not found."));
+				.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found."));
 
 		if (entity.getDrawMode() != DrawMode.MANUAL) {
-			throw new IllegalArgumentException("This room uses automatic draw mode");
+			throw new BadRequestException(ErrorCode.DRAW_MODE_MISMATCH, "This room uses automatic draw mode");
 		}
 
 		validateDrawnNumber(number, entity);
@@ -180,15 +182,15 @@ public class RoomService {
 		log.info("Correcting last number in room '{}' to {}", sessionCode, newNumber);
 
 		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-				.orElseThrow(() -> new RoomNotFoundException("Room not found."));
+				.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found."));
 
 		if (entity.getDrawMode() != DrawMode.MANUAL) {
-			throw new IllegalArgumentException("Number correction is only available for manual draw mode rooms");
+			throw new BadRequestException(ErrorCode.DRAW_MODE_MISMATCH, "Number correction is only available for manual draw mode rooms");
 		}
 
 		List<Integer> drawnNumbers = entity.getDrawnNumbers();
 		if (drawnNumbers.isEmpty()) {
-			throw new IllegalStateException("No numbers have been drawn yet");
+			throw new BadRequestException(ErrorCode.NO_NUMBERS_DRAWN, "No numbers have been drawn yet");
 		}
 
 		int oldNumber = drawnNumbers.get(drawnNumbers.size() - 1);
@@ -229,10 +231,10 @@ public class RoomService {
 		log.info("Drawing random number in room '{}'", sessionCode);
 
 		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-				.orElseThrow(() -> new RoomNotFoundException("Room not found"));
+				.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found"));
 
 		if (entity.getDrawMode() != DrawMode.AUTOMATIC) {
-			throw new IllegalArgumentException("This room uses manual draw mode");
+			throw new BadRequestException(ErrorCode.DRAW_MODE_MISMATCH, "This room uses manual draw mode");
 		}
 
 		int number = selectRandomNumber(entity);
@@ -260,10 +262,10 @@ public class RoomService {
 		log.info("Player '{}' joining room '{}'", playerName, sessionCode);
 
 		RoomEntity room = repository.findBySessionCode(sessionCode)
-			.orElseThrow(() -> new RoomNotFoundException("Room not found with session code: " + sessionCode));
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found with session code: " + sessionCode));
 
 		if (playerRepository.existsByNameAndRoomEntity(playerName, room)) {
-			throw new ConflictException("Player name '" + playerName + "' is already taken in this room");
+			throw new ConflictException(ErrorCode.PLAYER_NAME_TAKEN, "Player name '" + playerName + "' is already taken in this room");
 		}
 
 		PlayerEntity player = PlayerEntity.create(playerName, room);
@@ -289,7 +291,7 @@ public class RoomService {
 		log.debug("Fetching player list for room '{}' by creator", sessionCode);
 
 		RoomEntity room = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
-			.orElseThrow(() -> new RoomNotFoundException("Room not found or invalid creator hash"));
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found or invalid creator hash"));
 
 		return playerRepository.findByRoomEntity(room).stream()
 			.map(PlayerDTO::fromEntity)
@@ -314,7 +316,7 @@ public class RoomService {
 				.toList();
 
 		if (remaining.isEmpty()) {
-			throw new IllegalStateException("All numbers have been drawn");
+			throw new BadRequestException(ErrorCode.ALL_NUMBERS_DRAWN, "All numbers have been drawn");
 		}
 
 		return remaining.get(new SecureRandom().nextInt(remaining.size()));
@@ -331,12 +333,12 @@ public class RoomService {
 		int min = numberLabelMapper.getMinNumber();
 		int max = numberLabelMapper.getMaxNumber();
 		if (number < min || number > max) {
-			throw new IllegalArgumentException(
+			throw new BadRequestException(ErrorCode.NUMBER_OUT_OF_RANGE,
 				"Drawn number must be between " + min + " and " + max + ", got: " + number
 			);
 		}
 		if (entity.getDrawnNumbers().contains(number)) {
-			throw new IllegalArgumentException(
+			throw new BadRequestException(ErrorCode.NUMBER_ALREADY_DRAWN,
 				"Number " + number + " has already been drawn in this room"
 			);
 		}
