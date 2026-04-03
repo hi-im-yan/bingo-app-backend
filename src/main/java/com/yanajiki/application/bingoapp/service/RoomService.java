@@ -42,6 +42,8 @@ import java.util.stream.IntStream;
 @Slf4j
 public class RoomService {
 
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
 	private final RoomRepository repository;
 	private final NumberLabelMapper numberLabelMapper;
 	private final PlayerRepository playerRepository;
@@ -319,7 +321,7 @@ public class RoomService {
 			throw new BadRequestException(ErrorCode.ALL_NUMBERS_DRAWN, "All numbers have been drawn");
 		}
 
-		return remaining.get(new SecureRandom().nextInt(remaining.size()));
+		return remaining.get(SECURE_RANDOM.nextInt(remaining.size()));
 	}
 
 	/**

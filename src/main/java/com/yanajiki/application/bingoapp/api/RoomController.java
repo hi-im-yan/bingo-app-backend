@@ -45,12 +45,6 @@ public class RoomController {
 	private final RoomService roomService;
 	private final QrCodeService qrCodeService;
 
-	/**
-	 * Creates a new bingo room.
-	 *
-	 * @param input the creation form containing room name and optional description
-	 * @return the created room's creator view, including the {@code creatorHash}
-	 */
 	@Operation(
 		summary = "Create a bingo room",
 		description = "Creates a new bingo room and returns the creator view, including the creatorHash required for privileged operations."
@@ -77,18 +71,6 @@ public class RoomController {
 		return roomService.createRoom(input);
 	}
 
-	/**
-	 * Retrieves a room by its session code.
-	 * <p>
-	 * If the {@code X-Creator-Hash} header is provided and matches the stored hash,
-	 * returns the creator view (including {@code creatorHash}).
-	 * Otherwise returns the player view ({@code creatorHash} omitted).
-	 * </p>
-	 *
-	 * @param sessionCode the public session code of the room
-	 * @param creatorHash optional creator hash for privileged access, passed via {@code X-Creator-Hash} header
-	 * @return the room DTO in creator or player view
-	 */
 	@Operation(
 		summary = "Get a bingo room",
 		description = "Returns the room identified by the given session code. "
@@ -116,12 +98,6 @@ public class RoomController {
 		return roomService.findRoomBySessionCode(sessionCode, creatorHash);
 	}
 
-	/**
-	 * Deletes a room, authenticated by the creator hash.
-	 *
-	 * @param sessionCode the public session code of the room
-	 * @param creatorHash the creator's authentication hash, passed via {@code X-Creator-Hash} header
-	 */
 	@Operation(
 		summary = "Delete a bingo room",
 		description = "Permanently deletes the room identified by the given session code. "
@@ -152,16 +128,6 @@ public class RoomController {
 		roomService.deleteRoom(sessionCode, creatorHash);
 	}
 
-	/**
-	 * Returns a QR code PNG image encoding the join URL for the given room.
-	 * <p>
-	 * No authentication is required — anyone who has the session code can
-	 * retrieve the QR code. Returns 404 if the room does not exist.
-	 * </p>
-	 *
-	 * @param sessionCode the public session code of the room
-	 * @return a {@link ResponseEntity} containing the PNG image bytes with content-type {@code image/png}
-	 */
 	@Operation(
 		summary = "Get QR code for a bingo room",
 		description = "Returns a 250x250 PNG QR code that encodes the join URL for the given room. "
@@ -190,17 +156,6 @@ public class RoomController {
 			.body(imageBytes);
 	}
 
-	/**
-	 * Returns all players who have joined the given bingo room.
-	 * <p>
-	 * This is a creator-only operation. The {@code X-Creator-Hash} header must match
-	 * the hash assigned when the room was created.
-	 * </p>
-	 *
-	 * @param sessionCode the public session code of the room
-	 * @param creatorHash the creator's authentication hash, passed via {@code X-Creator-Hash} header
-	 * @return a list of {@link PlayerDTO} for all players in the room; empty list if no players joined
-	 */
 	@Operation(
 		summary = "List players in a room",
 		description = "Returns all players who have joined the room. Requires creator authentication via X-Creator-Hash header."

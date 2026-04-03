@@ -136,23 +136,11 @@ public class TiebreakService {
 		return TiebreakDTO.from(state, numberLabelMapper);
 	}
 
-	/**
-	 * Removes active tiebreaker state for a room.
-	 * No-op if no tiebreaker is active.
-	 *
-	 * @param sessionCode the room's session code
-	 */
 	public void clearTiebreak(String sessionCode) {
 		activeTiebreaks.remove(sessionCode);
 		log.debug("Tiebreaker cleared for room '{}'", sessionCode);
 	}
 
-	/**
-	 * Checks if a room has an active tiebreaker.
-	 *
-	 * @param sessionCode the room's session code
-	 * @return {@code true} if a tiebreaker is active
-	 */
 	public boolean hasActiveTiebreak(String sessionCode) {
 		return activeTiebreaks.containsKey(sessionCode);
 	}

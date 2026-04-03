@@ -64,27 +64,10 @@ public class RoomEntity {
 	@UpdateTimestamp
 	private Instant updateDateTime;
 
-	/**
-	 * Factory method to create a new {@link RoomEntity} with a generated session code and creator hash,
-	 * defaulting to {@link DrawMode#MANUAL}.
-	 *
-	 * @param name        the unique name of the room
-	 * @param description a short description of the room
-	 * @return a new {@link RoomEntity} ready to be persisted with {@link DrawMode#MANUAL}
-	 */
 	public static RoomEntity createEntityObject(String name, String description) {
 		return createEntityObject(name, description, DrawMode.MANUAL);
 	}
 
-	/**
-	 * Factory method to create a new {@link RoomEntity} with a generated session code, creator hash,
-	 * and the specified draw mode.
-	 *
-	 * @param name        the unique name of the room
-	 * @param description a short description of the room
-	 * @param drawMode    the draw mode for the room ({@link DrawMode#MANUAL} or {@link DrawMode#AUTOMATIC})
-	 * @return a new {@link RoomEntity} ready to be persisted
-	 */
 	public static RoomEntity createEntityObject(String name, String description, DrawMode drawMode) {
 		String creatorHash = UUID.randomUUID().toString();
 
@@ -100,26 +83,10 @@ public class RoomEntity {
 		return roomEntity;
 	}
 
-	/**
-	 * Appends a drawn number to this room's list of drawn numbers.
-	 * <p>
-	 * No validation is performed here — range and duplicate checks are the responsibility
-	 * of the service layer, which has access to the active {@code NumberLabelMapper} and
-	 * can apply game-specific rules without coupling the entity to any particular game type.
-	 * </p>
-	 *
-	 * @param number the bingo number to add
-	 */
 	public void addDrawnNumber(int number) {
 		drawnNumbers.add(number);
 	}
 
-	/**
-	 * Generates a cryptographically secure random session code of {@value #SESSION_CODE_LENGTH} characters,
-	 * using uppercase letters and digits.
-	 *
-	 * @return a new random session code string
-	 */
 	private static String newSessionCode() {
 		StringBuilder randomChars = new StringBuilder(SESSION_CODE_LENGTH);
 		for (int i = 0; i < SESSION_CODE_LENGTH; i++) {

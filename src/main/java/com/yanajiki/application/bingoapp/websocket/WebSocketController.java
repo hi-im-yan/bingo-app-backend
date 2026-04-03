@@ -35,17 +35,6 @@ public class WebSocketController {
 	private final TiebreakService tiebreakService;
 	private final SimpMessagingTemplate messagingTemplate;
 
-	/**
-	 * Handles a draw-number event from the creator.
-	 * <p>
-	 * Delegates to {@link RoomService#drawNumber} to validate the creator, add the number,
-	 * and persist. Broadcasts the updated player-view room state to all subscribers of
-	 * the room's dynamic topic ({@code /room/{sessionCode}}).
-	 * </p>
-	 *
-	 * @param message the incoming message containing session code, creator hash, and the number to draw
-	 * @throws Exception if the room is not found or the number is invalid
-	 */
 	@MessageMapping("/add-number")
 	public void drawNumber(AddNumberForm message) throws Exception {
 		String sessionCode = message.getSessionCode();
@@ -57,28 +46,6 @@ public class WebSocketController {
 		messagingTemplate.convertAndSend(dynamicTopic, updatedRoom);
 	}
 
-	/**
-	 * Draws a random number for automatic draw mode rooms.
-	 * <p>
-	 * Delegates to {@link RoomService#drawRandomNumber} to validate the creator, pick a random
-	 * undrawn number, and persist. Broadcasts the updated player-view room state to all subscribers
-	 * of the room's dynamic topic ({@code /room/{sessionCode}}).
-	 * Only works for rooms in AUTOMATIC draw mode — service enforces this constraint.
-	 * </p>
-	 *
-	 * @param message the draw request containing session code and creator hash
-	 */
-	/**
-	 * Handles a number correction request from the game master.
-	 * <p>
-	 * Delegates to {@link RoomService#correctLastNumber} to validate the creator, replace the
-	 * last drawn number, and persist. Broadcasts the updated player-view room state to
-	 * {@code /room/{sessionCode}} and a correction notification to
-	 * {@code /room/{sessionCode}/corrections} so connected clients can display the change.
-	 * </p>
-	 *
-	 * @param message the incoming message containing session code, creator hash, and corrected number
-	 */
 	@MessageMapping("/correct-number")
 	public void correctNumber(CorrectNumberForm message) {
 		String sessionCode = message.getSessionCode();
@@ -104,16 +71,6 @@ public class WebSocketController {
 				"/room/" + message.getSessionCode(), roomDTO);
 	}
 
-	/**
-	 * Handles a player joining a bingo room.
-	 * <p>
-	 * Delegates to {@link RoomService#joinRoom} to validate the room, check for duplicate
-	 * names, and persist the player. Broadcasts the new player's data to all subscribers
-	 * of the room's player topic ({@code /room/{sessionCode}/players}).
-	 * </p>
-	 *
-	 * @param form the join room form containing the player name and session code
-	 */
 	@MessageMapping("/join-room")
 	public void joinRoom(@Valid JoinRoomForm form) {
 		log.info("Player '{}' joining room '{}'", form.getPlayerName(), form.getSessionCode());
@@ -126,15 +83,6 @@ public class WebSocketController {
 		);
 	}
 
-	/**
-	 * Starts a tiebreaker for the given room.
-	 * <p>
-	 * Delegates to {@link TiebreakService#startTiebreak} and broadcasts the initial
-	 * tiebreaker state to {@code /room/{sessionCode}/tiebreak}.
-	 * </p>
-	 *
-	 * @param form the start tiebreaker form containing session code, creator hash, and player count
-	 */
 	@MessageMapping("/start-tiebreak")
 	public void startTiebreak(StartTiebreakForm form) {
 		log.info("Tiebreaker started for room '{}' with {} players",
@@ -147,16 +95,6 @@ public class WebSocketController {
 			"/room/" + form.getSessionCode() + "/tiebreak", dto);
 	}
 
-	/**
-	 * Draws a tiebreaker number for the given slot.
-	 * <p>
-	 * Broadcasts updated tiebreaker state to {@code /room/{sessionCode}/tiebreak}.
-	 * When all slots have drawn (status {@code FINISHED}), clears the in-memory
-	 * tiebreaker state so a new tiebreaker can be started.
-	 * </p>
-	 *
-	 * @param form the draw form containing session code, creator hash, and slot index
-	 */
 	@MessageMapping("/tiebreak-draw")
 	public void tiebreakDraw(TiebreakDrawForm form) {
 		log.info("Tiebreaker draw for room '{}', slot {}",

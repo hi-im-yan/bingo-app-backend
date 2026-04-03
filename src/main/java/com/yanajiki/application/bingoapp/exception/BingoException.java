@@ -14,15 +14,8 @@ import lombok.Getter;
 @Getter
 public abstract class BingoException extends RuntimeException {
 
-	/** Machine-readable code identifying the error condition. */
 	private final ErrorCode errorCode;
 
-	/**
-	 * Constructs a new {@code BingoException} with the given error code and message.
-	 *
-	 * @param errorCode machine-readable code identifying the error
-	 * @param message   human-readable description of the error
-	 */
 	protected BingoException(ErrorCode errorCode, String message) {
 		super(message);
 		this.errorCode = errorCode;
