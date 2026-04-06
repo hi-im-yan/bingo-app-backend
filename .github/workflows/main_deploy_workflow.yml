@@ -1,9 +1,8 @@
-name: Deploy Workflow
+name: Deploy to VPS (Production)
 
 on:
   push:
-    branches: [ 'develop', 'main' ]
-
+    branches: [ 'main' ]
 
 jobs:
 
@@ -21,7 +20,62 @@ jobs:
     uses: ./.github/workflows/sub_docker_workflow.yml
     secrets: inherit
 
-  deploy_on_render:
+  open_deploy_pr:
+    name: Open Deploy PR
     needs: docker_workflow
-    uses: ./.github/workflows/sub_deploy_render_workflow.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changelog
+        id: changelog
+        run: |
+          PREV_SHA=$(git log --format="%H" -n 2 | tail -1)
+          LOG=$(git log --pretty=format:"- %s (%h)" $PREV_SHA..HEAD)
+          echo "log<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Open deploy PR on vps-infra
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          BRANCH="deploy/bingo-backend-${{ github.run_number }}"
+          IMAGE_TAG="${{ github.run_number }}"
+          REPO="hi-im-yan/vps-infra"
+
+          git clone https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git /tmp/vps-infra
+          cd /tmp/vps-infra
+
+          git checkout -b "$BRANCH"
+
+          sed -i "s|bingoapp-backend:[^ ]*|bingoapp-backend:${IMAGE_TAG}|" docker-compose.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docker-compose.yml
+          git commit -m "deploy: bump bingo-backend to build #${IMAGE_TAG}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo "$REPO" \
+            --base main \
+            --head "$BRANCH" \
+            --title "deploy: bingo-backend #${IMAGE_TAG}" \
+            --body "$(cat <<EOF
+          ## Bingo Backend — Build #${IMAGE_TAG}
+
+          ### Changes
+          ${{ steps.changelog.outputs.log }}
+
+          ### Image
+          \`${{ secrets.DOCKER_HUB_REPOSITORY }}/bingoapp-backend:${IMAGE_TAG}\`
+
+          ---
+          Merge this PR to deploy to VPS.
+          EOF
+          )"
