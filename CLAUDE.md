@@ -72,7 +72,7 @@ WS errors are sent to /user/queue/errors as ErrorResponse JSON (personal queue p
 
 ## Profiles
 - dev (default): H2 in-memory, permissive CORS, /h2-console
-- prod: PostgreSQL (env: DB_HOST/PORT/NAME/USER/PASSWORD), strict CORS, ddl-auto=validate
+- prod: PostgreSQL public schema (env: DB_HOST/PORT/NAME/USER/PASSWORD), strict CORS, ddl-auto=update
 
 ## Feature Closeout Checklist
 When closing out a feature, always update ALL of these:
