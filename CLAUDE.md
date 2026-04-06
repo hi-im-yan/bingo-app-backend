@@ -83,6 +83,6 @@ When closing out a feature, always update ALL of these:
 - `docs/openapi.json` — regenerate from running app if static spec exists
 
 ## Git & Team
-Branch v2 for development. Feature sub-branches off v2 if needed. Conventional commits.
+Feature branches off `develop` → PR to `develop` → merge `develop` into `main`. Conventional commits.
 Team structure: **Standard** profile (see ~/.claude/references/team-profiles.md).
-Task management: `.tasks/` system (see ~/.claude/references/task-system.md). Planning on main branch, execution on feature branches.
+Task management: `.tasks/` system (see ~/.claude/references/task-system.md). Planning on develop branch, execution on feature branches.
