@@ -1,13 +1,13 @@
-# 001 — ContactMessageEntity + ContactMessageRepository
+# 001 — FeedbackMessageEntity + FeedbackMessageRepository
 
 ## What to build
-JPA entity for the `contact_messages` table and its Spring Data JPA repository. This is the persistence layer for contact form submissions.
+JPA entity for the `feedback_messages` table and its Spring Data JPA repository. This is the persistence layer for feedback form submissions.
 
 ## Acceptance Criteria
-- [ ] `ContactMessageEntity` maps to `contact_messages` table
+- [ ] `FeedbackMessageEntity` maps to `feedback_messages` table
 - [ ] Fields: id (auto-generated), name, email (nullable), phone (nullable), content, createdAt
 - [ ] Static factory method `create(name, email, phone, content)`
-- [ ] `ContactMessageRepository` extends `JpaRepository<ContactMessageEntity, Long>`
+- [ ] `FeedbackMessageRepository` extends `JpaRepository<FeedbackMessageEntity, Long>`
 - [ ] Entity test verifies factory method sets fields correctly
 - [ ] All tests pass (`mvn test`)
 
@@ -16,9 +16,9 @@ JPA entity for the `contact_messages` table and its Spring Data JPA repository. 
 ### Files to CREATE
 | File | Package/Path | Purpose |
 |------|-------------|---------|
-| `ContactMessageEntity.java` | `com.yanajiki.application.bingoapp.database` | JPA entity |
-| `ContactMessageRepository.java` | `com.yanajiki.application.bingoapp.database` | Spring Data JPA interface |
-| `ContactMessageEntityTest.java` | `com.yanajiki.application.bingoapp.database` (test) | Entity unit test |
+| `FeedbackMessageEntity.java` | `com.yanajiki.application.bingoapp.database` | JPA entity |
+| `FeedbackMessageRepository.java` | `com.yanajiki.application.bingoapp.database` | Spring Data JPA interface |
+| `FeedbackMessageEntityTest.java` | `com.yanajiki.application.bingoapp.database` (test) | Entity unit test |
 
 ### Files to READ (for patterns — do NOT modify)
 | File | What to copy |
@@ -32,12 +32,12 @@ JPA entity for the `contact_messages` table and its Spring Data JPA repository. 
 **Entity:**
 ```java
 @Entity
-@Table(name = "contact_messages")
+@Table(name = "feedback_messages")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
-public class ContactMessageEntity {
+public class FeedbackMessageEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -58,8 +58,8 @@ public class ContactMessageEntity {
 	@CreationTimestamp
 	private Instant createdAt;
 
-	public static ContactMessageEntity create(String name, String email, String phone, String content) {
-		ContactMessageEntity entity = new ContactMessageEntity();
+	public static FeedbackMessageEntity create(String name, String email, String phone, String content) {
+		FeedbackMessageEntity entity = new FeedbackMessageEntity();
 		entity.setName(name);
 		entity.setEmail(email);
 		entity.setPhone(phone);
@@ -72,7 +72,7 @@ public class ContactMessageEntity {
 **Repository:**
 ```java
 @Repository
-public interface ContactMessageRepository extends JpaRepository<ContactMessageEntity, Long> {}
+public interface FeedbackMessageRepository extends JpaRepository<FeedbackMessageEntity, Long> {}
 ```
 
 ### Conventions (from project CLAUDE.md)
@@ -83,9 +83,9 @@ public interface ContactMessageRepository extends JpaRepository<ContactMessageEn
 - Static factory methods for entity construction
 
 ## TDD Sequence
-1. Write `ContactMessageEntityTest` — test factory method sets all fields
-2. Write `ContactMessageEntity` — make test pass
-3. Write `ContactMessageRepository` — interface only, no test needed
+1. Write `FeedbackMessageEntityTest` — test factory method sets all fields
+2. Write `FeedbackMessageEntity` — make test pass
+3. Write `FeedbackMessageRepository` — interface only, no test needed
 4. Run `mvn test` — all tests must pass
 
 ## Done Definition

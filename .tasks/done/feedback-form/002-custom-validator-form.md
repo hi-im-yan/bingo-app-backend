@@ -1,10 +1,10 @@
-# 002 — ContactForm DTO
+# 002 — FeedbackForm DTO
 
 ## What to build
-Request DTO for the contact form endpoint. Name and content are required. Email and phone are fully optional (users can submit anonymously or provide contact info if they want a response).
+Request DTO for the feedback form endpoint. Name and content are required. Email and phone are fully optional (users can submit anonymously or provide contact info if they want a response).
 
 ## Acceptance Criteria
-- [ ] `ContactForm` has fields: name (required), email (optional, @Email if provided), phone (optional), content (required)
+- [ ] `FeedbackForm` has fields: name (required), email (optional, @Email if provided), phone (optional), content (required)
 - [ ] No custom validator — email and phone are independently optional
 - [ ] All tests pass (`mvn test`)
 
@@ -13,7 +13,7 @@ Request DTO for the contact form endpoint. Name and content are required. Email 
 ### Files to CREATE
 | File | Package/Path | Purpose |
 |------|-------------|---------|
-| `ContactForm.java` | `com.yanajiki.application.bingoapp.api.form` | Request DTO |
+| `FeedbackForm.java` | `com.yanajiki.application.bingoapp.api.form` | Request DTO |
 
 ### Files to READ (for patterns — do NOT modify)
 | File | What to copy |
@@ -26,7 +26,7 @@ Request DTO for the contact form endpoint. Name and content are required. Email 
 @NoArgsConstructor
 @Getter
 @Setter
-public class ContactForm {
+public class FeedbackForm {
 
 	@NotBlank
 	@Size(max = 100)
@@ -53,7 +53,7 @@ No `@AtLeastOneContact` validator. Email and phone are both optional. If the use
 - Tabs for indentation
 
 ## TDD Sequence
-1. Write `ContactForm` — simple DTO, no separate test needed (covered by integration test in task 006)
+1. Write `FeedbackForm` — simple DTO, no separate test needed (covered by integration test in task 006)
 2. Run `mvn test` — all tests must pass
 
 ## Done Definition

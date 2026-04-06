@@ -1,11 +1,11 @@
-# 005 — ContactService
+# 005 — FeedbackService
 
 ## What to build
-Service layer that receives a ContactForm, saves it as a ContactMessageEntity, triggers async Discord notification, and returns a ContactMessageDTO.
+Service layer that receives a FeedbackForm, saves it as a FeedbackMessageEntity, triggers async Discord notification, and returns a FeedbackMessageDTO.
 
 ## Acceptance Criteria
-- [ ] `ContactService.submit(ContactForm)` saves entity to database
-- [ ] Returns `ContactMessageDTO` with all fields populated
+- [ ] `FeedbackService.submit(FeedbackForm)` saves entity to database
+- [ ] Returns `FeedbackMessageDTO` with all fields populated
 - [ ] Calls `DiscordNotifier.notify()` with the saved entity
 - [ ] Unit test covers: save + return DTO, Discord notifier called, null email/phone handled
 - [ ] All tests pass (`mvn test`)
@@ -15,8 +15,8 @@ Service layer that receives a ContactForm, saves it as a ContactMessageEntity, t
 ### Files to CREATE
 | File | Package/Path | Purpose |
 |------|-------------|---------|
-| `ContactService.java` | `com.yanajiki.application.bingoapp.service` | Business logic |
-| `ContactServiceTest.java` | `com.yanajiki.application.bingoapp.service` (test) | Unit test |
+| `FeedbackService.java` | `com.yanajiki.application.bingoapp.service` | Business logic |
+| `FeedbackServiceTest.java` | `com.yanajiki.application.bingoapp.service` (test) | Unit test |
 
 ### Files to READ (for patterns — do NOT modify)
 | File | What to copy |
@@ -29,27 +29,27 @@ Service layer that receives a ContactForm, saves it as a ContactMessageEntity, t
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ContactService {
+public class FeedbackService {
 
-	private final ContactMessageRepository repository;
+	private final FeedbackMessageRepository repository;
 	private final DiscordNotifier discordNotifier;
 
-	public ContactMessageDTO submit(ContactForm form) {
-		log.info("Saving contact message from '{}'", form.getName());
+	public FeedbackMessageDTO submit(FeedbackForm form) {
+		log.info("Saving feedback message from '{}'", form.getName());
 
-		ContactMessageEntity entity = ContactMessageEntity.create(
+		FeedbackMessageEntity entity = FeedbackMessageEntity.create(
 			form.getName(),
 			form.getEmail(),
 			form.getPhone(),
 			form.getContent()
 		);
 
-		ContactMessageEntity saved = repository.save(entity);
-		log.info("Contact message saved with id={}", saved.getId());
+		FeedbackMessageEntity saved = repository.save(entity);
+		log.info("Feedback message saved with id={}", saved.getId());
 
 		discordNotifier.notify(saved);
 
-		return ContactMessageDTO.fromEntity(saved);
+		return FeedbackMessageDTO.fromEntity(saved);
 	}
 }
 ```
@@ -57,11 +57,11 @@ public class ContactService {
 **Test structure:**
 ```java
 @ExtendWith(MockitoExtension.class)
-class ContactServiceTest {
+class FeedbackServiceTest {
 
-	@Mock ContactMessageRepository repository;
+	@Mock FeedbackMessageRepository repository;
 	@Mock DiscordNotifier discordNotifier;
-	@InjectMocks ContactService contactService;
+	@InjectMocks FeedbackService feedbackService;
 
 	@Nested
 	@DisplayName("submit")
@@ -94,8 +94,8 @@ Use `when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0))` to retu
 - Tabs for indentation
 
 ## TDD Sequence
-1. Write `ContactServiceTest` — all test cases
-2. Write `ContactService` — make tests pass
+1. Write `FeedbackServiceTest` — all test cases
+2. Write `FeedbackService` — make tests pass
 3. Run `mvn test` — all tests must pass
 
 ## Done Definition
