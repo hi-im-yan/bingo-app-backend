@@ -61,7 +61,7 @@ jobs:
           git commit -m "deploy: bump bingo-backend to build #${IMAGE_TAG}"
           git push origin "$BRANCH"
 
-          gh pr create \
+          PR_URL=$(gh pr create \
             --repo "$REPO" \
             --base main \
             --head "$BRANCH" \
@@ -78,4 +78,13 @@ jobs:
           ---
           Merge this PR to deploy to VPS.
           EOF
-          )"
+          )")
+
+          echo "pr_url=${PR_URL}" >> $GITHUB_OUTPUT
+        id: create_pr
+
+      - name: Notify Discord
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{\"embeds\":[{\"title\":\"🚀 Bingo Backend #${{ github.run_number }} ready to deploy\",\"description\":\"### Changes\n${{ steps.changelog.outputs.log }}\n\n[View PR](${{ steps.create_pr.outputs.pr_url }})\",\"color\":5814783}]}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }}
