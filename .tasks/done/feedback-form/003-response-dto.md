@@ -1,13 +1,13 @@
-# 003 — ContactMessageDTO Response Record
+# 003 — FeedbackMessageDTO Response Record
 
 ## What to build
-A Java record for the contact message API response, with a static factory method for entity-to-DTO conversion.
+A Java record for the feedback message API response, with a static factory method for entity-to-DTO conversion.
 
 ## Acceptance Criteria
-- [ ] `ContactMessageDTO` is a Java record
+- [ ] `FeedbackMessageDTO` is a Java record
 - [ ] Fields: id, name, email, phone, content, createdAt
 - [ ] `@JsonInclude(NON_NULL)` to omit null email/phone
-- [ ] Static `fromEntity(ContactMessageEntity)` factory method
+- [ ] Static `fromEntity(FeedbackMessageEntity)` factory method
 - [ ] All tests pass (`mvn test`)
 
 ## Technical Spec
@@ -15,7 +15,7 @@ A Java record for the contact message API response, with a static factory method
 ### Files to CREATE
 | File | Package/Path | Purpose |
 |------|-------------|---------|
-| `ContactMessageDTO.java` | `com.yanajiki.application.bingoapp.api.response` | Response record |
+| `FeedbackMessageDTO.java` | `com.yanajiki.application.bingoapp.api.response` | Response record |
 
 ### Files to READ (for patterns — do NOT modify)
 | File | What to copy |
@@ -26,7 +26,7 @@ A Java record for the contact message API response, with a static factory method
 ### Implementation Details
 ```java
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record ContactMessageDTO(
+public record FeedbackMessageDTO(
 	Long id,
 	String name,
 	String email,
@@ -34,8 +34,8 @@ public record ContactMessageDTO(
 	String content,
 	Instant createdAt
 ) {
-	public static ContactMessageDTO fromEntity(ContactMessageEntity entity) {
-		return new ContactMessageDTO(
+	public static FeedbackMessageDTO fromEntity(FeedbackMessageEntity entity) {
+		return new FeedbackMessageDTO(
 			entity.getId(),
 			entity.getName(),
 			entity.getEmail(),
@@ -54,8 +54,8 @@ public record ContactMessageDTO(
 - Tabs for indentation
 
 ## TDD Sequence
-1. No separate test — covered by ContactService unit test (task 005) and integration test (task 006)
-2. Write `ContactMessageDTO`
+1. No separate test — covered by FeedbackService unit test (task 005) and integration test (task 006)
+2. Write `FeedbackMessageDTO`
 3. Run `mvn test` — all tests must pass
 
 ## Done Definition

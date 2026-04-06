@@ -1,7 +1,7 @@
 # 004 — DiscordConfig + DiscordNotifier Service
 
 ## What to build
-A configuration bean for RestClient and an async service that sends contact message details to a Discord webhook. Must be fire-and-forget — failures are logged but never propagate.
+A configuration bean for RestClient and an async service that sends feedback message details to a Discord webhook. Must be fire-and-forget — failures are logged but never propagate.
 
 ## Acceptance Criteria
 - [ ] `DiscordConfig` provides a `RestClient` bean
@@ -54,7 +54,7 @@ public class DiscordNotifier {
 	private String webhookUrl;
 
 	@Async
-	public void notify(ContactMessageEntity message) {
+	public void notify(FeedbackMessageEntity message) {
 		if (!StringUtils.hasText(webhookUrl)) {
 			log.debug("Discord webhook URL not configured, skipping notification");
 			return;
@@ -67,15 +67,15 @@ public class DiscordNotifier {
 				.body(payload)
 				.retrieve()
 				.toBodilessEntity();
-			log.info("Discord notification sent for contact message id={}", message.getId());
+			log.info("Discord notification sent for feedback message id={}", message.getId());
 		} catch (Exception ex) {
 			log.warn("Failed to send Discord notification: {}", ex.getMessage());
 		}
 	}
 
-	private String buildPayload(ContactMessageEntity message) {
+	private String buildPayload(FeedbackMessageEntity message) {
 		return """
-			{"embeds":[{"title":"New Contact Message","fields":[{"name":"Name","value":"%s"},{"name":"Email","value":"%s"},{"name":"Phone","value":"%s"},{"name":"Message","value":"%s"}],"color":5814783}]}
+			{"embeds":[{"title":"New Feedback Message","fields":[{"name":"Name","value":"%s"},{"name":"Email","value":"%s"},{"name":"Phone","value":"%s"},{"name":"Message","value":"%s"}],"color":5814783}]}
 			""".formatted(
 				escape(message.getName()),
 				emptyIfNull(message.getEmail()),

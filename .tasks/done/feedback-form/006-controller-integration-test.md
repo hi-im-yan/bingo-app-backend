@@ -1,10 +1,10 @@
-# 006 — ContactController + Integration Test
+# 006 — FeedbackController + Integration Test
 
 ## What to build
-REST controller for `POST /api/v1/contact` with OpenAPI docs, and a full integration test using REST Assured.
+REST controller for `POST /api/v1/feedback` with OpenAPI docs, and a full integration test using REST Assured.
 
 ## Acceptance Criteria
-- [ ] `POST /api/v1/contact` with valid payload returns 200 + ContactMessageDTO
+- [ ] `POST /api/v1/feedback` with valid payload returns 200 + FeedbackMessageDTO
 - [ ] Returns 400 when name is blank
 - [ ] Returns 400 when content is blank
 - [ ] Returns 200 with no email and no phone (anonymous)
@@ -21,8 +21,8 @@ REST controller for `POST /api/v1/contact` with OpenAPI docs, and a full integra
 ### Files to CREATE
 | File | Package/Path | Purpose |
 |------|-------------|---------|
-| `ContactController.java` | `com.yanajiki.application.bingoapp.api` | REST controller |
-| `ContactControllerIntegrationTest.java` | `com.yanajiki.application.bingoapp.api` (test) | Integration test |
+| `FeedbackController.java` | `com.yanajiki.application.bingoapp.api` | REST controller |
+| `FeedbackControllerIntegrationTest.java` | `com.yanajiki.application.bingoapp.api` (test) | Integration test |
 
 ### Files to READ (for patterns — do NOT modify)
 | File | What to copy |
@@ -34,17 +34,17 @@ REST controller for `POST /api/v1/contact` with OpenAPI docs, and a full integra
 
 **Controller:**
 ```java
-@Tag(name = "Contact", description = "Contact form submission")
+@Tag(name = "Feedback", description = "Feedback form submission")
 @RestController
-@RequestMapping("/api/v1/contact")
+@RequestMapping("/api/v1/feedback")
 @RequiredArgsConstructor
 @Slf4j
-public class ContactController {
+public class FeedbackController {
 
-	private final ContactService contactService;
+	private final FeedbackService feedbackService;
 
 	@Operation(
-		summary = "Submit a contact message",
+		summary = "Submit a feedback message",
 		description = "Saves the message and fires an async Discord notification."
 	)
 	@ApiResponses({
@@ -58,8 +58,8 @@ public class ContactController {
 		)
 	})
 	@PostMapping
-	public ContactMessageDTO submit(@Valid @RequestBody ContactForm form) {
-		return contactService.submit(form);
+	public FeedbackMessageDTO submit(@Valid @RequestBody FeedbackForm form) {
+		return feedbackService.submit(form);
 	}
 }
 ```
@@ -68,13 +68,13 @@ public class ContactController {
 ```java
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-class ContactControllerIntegrationTest {
+class FeedbackControllerIntegrationTest {
 
 	@LocalServerPort
 	private int port;
 
 	@Autowired
-	private ContactMessageRepository contactMessageRepository;
+	private FeedbackMessageRepository feedbackMessageRepository;
 
 	@BeforeEach
 	void setUp() {
@@ -83,12 +83,12 @@ class ContactControllerIntegrationTest {
 
 	@AfterEach
 	void tearDown() {
-		contactMessageRepository.deleteAll();
+		feedbackMessageRepository.deleteAll();
 	}
 
 	@Nested
-	@DisplayName("POST /api/v1/contact")
-	class PostContact {
+	@DisplayName("POST /api/v1/feedback")
+	class PostFeedback {
 
 		@Test
 		@DisplayName("returns 200 with anonymous submission (no email, no phone)")
@@ -136,8 +136,8 @@ Discord webhook URL is blank in dev/test profile, so `DiscordNotifier.notify()` 
 - Tabs for indentation
 
 ## TDD Sequence
-1. Write `ContactControllerIntegrationTest` — all test cases
-2. Write `ContactController` — make tests pass
+1. Write `FeedbackControllerIntegrationTest` — all test cases
+2. Write `FeedbackController` — make tests pass
 3. Run `mvn test` — all tests must pass
 
 ## Done Definition

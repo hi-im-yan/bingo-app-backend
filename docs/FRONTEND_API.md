@@ -157,6 +157,69 @@ GET /api/v1/room/{session-code}/qrcode
 
 ---
 
+### Submit Feedback
+
+```
+POST /api/v1/feedback
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "phone": "555-1234",
+  "content": "Love the app!"
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `name` | string | yes | max 100 chars |
+| `email` | string | no | valid email format, max 254 chars |
+| `phone` | string | no | max 20 chars |
+| `content` | string | yes | max 2000 chars |
+
+No authentication required. Email and phone are both optional — anonymous submissions are allowed.
+
+**Response (200):**
+```json
+{
+  "id": 1,
+  "name": "Alice",
+  "email": "alice@example.com",
+  "phone": "555-1234",
+  "content": "Love the app!",
+  "createdAt": "2026-04-06T10:30:00Z"
+}
+```
+
+Null `email`/`phone` fields are omitted from the response (not included as `null`).
+
+**Errors:** `400` validation error (blank name/content, invalid email format)
+
+**TypeScript interface:**
+```typescript
+interface FeedbackForm {
+  name: string;
+  email?: string;
+  phone?: string;
+  content: string;
+}
+
+interface FeedbackMessageDTO {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  content: string;
+  createdAt: string;
+}
+```
+
+---
+
 ## WebSocket (STOMP over SockJS)
 
 ### Connection
