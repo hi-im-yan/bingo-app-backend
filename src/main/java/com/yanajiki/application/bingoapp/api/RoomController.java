@@ -1,6 +1,7 @@
 package com.yanajiki.application.bingoapp.api;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
+import com.yanajiki.application.bingoapp.api.form.RoomLookupForm;
 import com.yanajiki.application.bingoapp.api.response.ApiResponse;
 import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
@@ -154,6 +155,25 @@ public class RoomController {
 		return ResponseEntity.ok()
 			.contentType(MediaType.IMAGE_PNG)
 			.body(imageBytes);
+	}
+
+	@Operation(
+		summary = "Lookup rooms by creator hashes",
+		description = "Returns the rooms matching the supplied creator hashes in creator view (including creatorHash). "
+			+ "Unknown hashes are silently skipped. A null or empty list yields an empty result. Never returns 404."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "List of matching rooms (possibly empty)",
+			content = @Content(schema = @Schema(implementation = RoomDTO.class))
+		)
+	})
+	@PostMapping("/lookup")
+	public List<RoomDTO> lookup(@RequestBody RoomLookupForm form) {
+		return roomService.findRoomsByCreatorHashes(
+			form.creatorHashes() == null ? List.of() : form.creatorHashes()
+		);
 	}
 
 	@Operation(

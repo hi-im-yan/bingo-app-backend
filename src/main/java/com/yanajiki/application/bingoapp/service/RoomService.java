@@ -108,6 +108,28 @@ public class RoomService {
 	}
 
 	/**
+	 * Resolves a batch of creator hashes to their owning rooms, returning creator-view DTOs.
+	 * <p>
+	 * Unknown hashes are silently skipped — the response contains only rooms that currently exist.
+	 * A null or empty input returns an empty list without touching the database.
+	 * </p>
+	 *
+	 * @param creatorHashes list of creator hashes to resolve
+	 * @return list of {@link RoomDTO} in creator view; empty if input is null/empty or no rooms match
+	 */
+	public List<RoomDTO> findRoomsByCreatorHashes(List<String> creatorHashes) {
+		if (creatorHashes == null || creatorHashes.isEmpty()) {
+			log.debug("findRoomsByCreatorHashes called with empty input — returning empty list");
+			return List.of();
+		}
+
+		log.debug("Looking up {} rooms by creator hashes", creatorHashes.size());
+		return repository.findAllByCreatorHashIn(creatorHashes).stream()
+				.map(entity -> RoomDTO.fromEntityToCreator(entity, numberLabelMapper))
+				.toList();
+	}
+
+	/**
 	 * Deletes a room identified by session code, authenticated by creator hash.
 	 * <p>
 	 * The room is only deleted if both the session code and creator hash match,

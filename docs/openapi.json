@@ -19,6 +19,10 @@
         {
             "name": "Rooms",
             "description": "Bingo room management"
+        },
+        {
+            "name": "Feedback",
+            "description": "Feedback form submission"
         }
     ],
     "paths": {
@@ -67,6 +71,80 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/room/lookup": {
+            "post": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "Lookup rooms by creator hashes",
+                "description": "Returns the rooms matching the supplied creator hashes in creator view (including creatorHash). Unknown hashes are silently skipped. A null or empty list yields an empty result. Never returns 404.",
+                "operationId": "lookup",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RoomLookupForm"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "List of matching rooms (possibly empty)",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RoomDTO"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/feedback": {
+            "post": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Submit a feedback message",
+                "description": "Saves the message and fires an async Discord notification.",
+                "operationId": "submit",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FeedbackForm"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Message received",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackMessageDTO"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackMessageDTO"
                                 }
                             }
                         }
@@ -217,6 +295,61 @@
                     }
                 }
             }
+        },
+        "/api/v1/room/{session-code}/players": {
+            "get": {
+                "tags": [
+                    "Rooms"
+                ],
+                "summary": "List players in a room",
+                "description": "Returns all players who have joined the room. Requires creator authentication via X-Creator-Hash header.",
+                "operationId": "getPlayers",
+                "parameters": [
+                    {
+                        "name": "session-code",
+                        "in": "path",
+                        "description": "Public session code of the room",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "X-Creator-Hash",
+                        "in": "header",
+                        "description": "Creator hash for authentication; must match the hash assigned at room creation",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Player list retrieved successfully",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PlayerDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Room not found or invalid creator hash",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -289,6 +422,79 @@
                     },
                     "message": {
                         "type": "string"
+                    }
+                }
+            },
+            "RoomLookupForm": {
+                "type": "object",
+                "properties": {
+                    "creatorHashes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "FeedbackForm": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "minLength": 0
+                    },
+                    "email": {
+                        "type": "string",
+                        "maxLength": 254,
+                        "minLength": 0
+                    },
+                    "phone": {
+                        "type": "string",
+                        "maxLength": 20,
+                        "minLength": 0
+                    },
+                    "content": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "minLength": 0
+                    }
+                }
+            },
+            "FeedbackMessageDTO": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "phone": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "PlayerDTO": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "joinDateTime": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             }

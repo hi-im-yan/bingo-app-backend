@@ -879,4 +879,89 @@ class RoomServiceTest {
 			verify(playerRepository, never()).findByRoomEntity(any());
 		}
 	}
+
+	// ─── findRoomsByCreatorHashes ────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("findRoomsByCreatorHashes")
+	class FindRoomsByCreatorHashes {
+
+		/**
+		 * When every requested hash matches an existing room, the service returns one
+		 * creator-view DTO per matched entity.
+		 */
+		@Test
+		@DisplayName("all-found — returns creator-view DTO for every matched room")
+		void allFound_returnsCreatorDtoPerRoom() {
+			// given
+			RoomEntity r1 = RoomEntity.createEntityObject("Room One", "desc1");
+			RoomEntity r2 = RoomEntity.createEntityObject("Room Two", "desc2");
+			List<String> hashes = List.of(r1.getCreatorHash(), r2.getCreatorHash());
+
+			when(repository.findAllByCreatorHashIn(hashes)).thenReturn(List.of(r1, r2));
+
+			// when
+			List<RoomDTO> result = roomService.findRoomsByCreatorHashes(hashes);
+
+			// then
+			assertThat(result).hasSize(2);
+			assertThat(result).extracting(RoomDTO::creatorHash)
+				.containsExactlyInAnyOrder(r1.getCreatorHash(), r2.getCreatorHash());
+			verify(repository).findAllByCreatorHashIn(hashes);
+		}
+
+		/**
+		 * When only some hashes match, unknown ones are silently dropped and the result
+		 * contains only the rooms that existed in the database.
+		 */
+		@Test
+		@DisplayName("partial-found — unknown hashes are silently skipped")
+		void partialFound_skipsUnknownHashes() {
+			// given
+			RoomEntity r1 = RoomEntity.createEntityObject("Room One", "desc1");
+			List<String> hashes = List.of(r1.getCreatorHash(), "unknown-hash");
+
+			when(repository.findAllByCreatorHashIn(hashes)).thenReturn(List.of(r1));
+
+			// when
+			List<RoomDTO> result = roomService.findRoomsByCreatorHashes(hashes);
+
+			// then
+			assertThat(result).hasSize(1);
+			assertThat(result.get(0).creatorHash()).isEqualTo(r1.getCreatorHash());
+		}
+
+		/**
+		 * When no hashes match, the service returns an empty list without throwing.
+		 */
+		@Test
+		@DisplayName("none-found — returns empty list without exception")
+		void noneFound_returnsEmptyList() {
+			// given
+			List<String> hashes = List.of("a", "b");
+			when(repository.findAllByCreatorHashIn(hashes)).thenReturn(List.of());
+
+			// when
+			List<RoomDTO> result = roomService.findRoomsByCreatorHashes(hashes);
+
+			// then
+			assertThat(result).isEmpty();
+		}
+
+		/**
+		 * A null or empty input must short-circuit to an empty list and never hit the repository.
+		 */
+		@Test
+		@DisplayName("empty input — returns empty list and does not call the repository")
+		void emptyInput_returnsEmptyListNoDbCall() {
+			// when
+			List<RoomDTO> fromEmpty = roomService.findRoomsByCreatorHashes(List.of());
+			List<RoomDTO> fromNull = roomService.findRoomsByCreatorHashes(null);
+
+			// then
+			assertThat(fromEmpty).isEmpty();
+			assertThat(fromNull).isEmpty();
+			verify(repository, never()).findAllByCreatorHashIn(any());
+		}
+	}
 }

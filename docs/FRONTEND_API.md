@@ -145,6 +145,85 @@ Returns an empty array if no players have joined yet.
 
 ---
 
+### Lookup Rooms by Creator Hashes
+
+```
+POST /api/v1/room/lookup
+Content-Type: application/json
+```
+
+Bulk-resolves a list of `creatorHash` values to their rooms. No auth header — the
+hash list in the body is itself the credential (only someone who holds a hash can
+resolve it). Use this on app load to rehydrate the creator's "my rooms" list from
+`localStorage`.
+
+**Request:**
+```json
+{
+  "creatorHashes": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+  ]
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `creatorHashes` | string[] | no | UUID list. Empty or missing → `[]` response. |
+
+**Response (200):** `List<RoomDTO>` in **creator view** (includes `creatorHash`).
+Unknown, stale, or expired hashes are silently skipped — the response only contains
+rooms that still exist. Order is not guaranteed to match the request.
+
+```json
+[
+  {
+    "name": "Friday Night Bingo",
+    "sessionCode": "A3X9K2",
+    "creatorHash": "550e8400-e29b-41d4-a716-446655440000",
+    "drawnNumbers": [42, 7],
+    "drawnLabels": ["N-42", "B-7"],
+    "drawMode": "MANUAL"
+  }
+]
+```
+
+**Errors:** None expected for normal input. Malformed JSON → `400`.
+
+**Frontend integration tip:** after calling `/lookup`, diff the returned rooms against
+your localStorage hash list and **prune any hashes that didn't come back** — those
+rooms have expired (24h TTL) or were deleted. This keeps localStorage clean over time.
+
+```typescript
+interface RoomLookupForm {
+  creatorHashes: string[];
+}
+
+// Response is RoomDTO[] (creator view)
+
+// Example pruning flow
+async function rehydrateMyRooms() {
+  const stored: string[] = JSON.parse(localStorage.getItem('creatorHashes') ?? '[]');
+  if (stored.length === 0) return [];
+
+  const res = await fetch('/api/v1/room/lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creatorHashes: stored }),
+  });
+  const rooms: RoomDTO[] = await res.json();
+
+  // Prune stale hashes
+  const alive = new Set(rooms.map(r => r.creatorHash!));
+  const pruned = stored.filter(h => alive.has(h));
+  localStorage.setItem('creatorHashes', JSON.stringify(pruned));
+
+  return rooms;
+}
+```
+
+---
+
 ### Get Room QR Code
 
 ```

@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,7 @@ public interface RoomRepository extends JpaRepository<RoomEntity, Long> {
 
 	/** Used by the cleanup scheduler to find rooms older than the TTL. */
 	List<RoomEntity> findByUpdateDateTimeBefore(Instant cutoff);
+
+	/** Batch lookup resolving multiple creator hashes to their owning rooms. */
+	List<RoomEntity> findAllByCreatorHashIn(Collection<String> creatorHashes);
 }
