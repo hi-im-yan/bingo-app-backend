@@ -45,6 +45,7 @@ com.yanajiki.application.bingoapp/
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
 | POST | /api/v1/room | Create room (optional drawMode, defaults MANUAL) | None |
+| POST | /api/v1/room/lookup | Bulk lookup rooms by creatorHash list (creator view, unknown hashes skipped) | Hash list in body |
 | GET | /api/v1/room/{session-code} | Get room | X-Creator-Hash (optional, determines view) |
 | DELETE | /api/v1/room/{session-code} | Delete room | X-Creator-Hash (required) |
 | GET | /api/v1/room/{session-code}/players | List players in room | X-Creator-Hash (required) |
