@@ -84,7 +84,14 @@ jobs:
         id: create_pr
 
       - name: Notify Discord
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          CHANGELOG: ${{ steps.changelog.outputs.log }}
+          PR_URL: ${{ steps.create_pr.outputs.pr_url }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          curl -H "Content-Type: application/json" \
-            -d "{\"embeds\":[{\"title\":\"🚀 Bingo Backend #${{ github.run_number }} ready to deploy\",\"description\":\"### Changes\n${{ steps.changelog.outputs.log }}\n\n[View PR](${{ steps.create_pr.outputs.pr_url }})\",\"color\":5814783}]}" \
-            ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PAYLOAD=$(jq -n \
+            --arg title "🚀 Bingo Backend #${RUN_NUMBER} ready to deploy" \
+            --arg description "### Changes"$'\n'"${CHANGELOG}"$'\n\n'"[View PR](${PR_URL})" \
+            '{embeds: [{title: $title, description: $description, color: 5814783}]}')
+          curl -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
