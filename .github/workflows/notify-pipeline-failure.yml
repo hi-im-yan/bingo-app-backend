@@ -1,0 +1,53 @@
+# Fires a Discord webhook whenever any of the listed workflows completes with a
+# failure/cancelled/timed_out conclusion. Sub-workflows called via `uses:` don't
+# emit their own workflow_run events — their failures surface through the caller,
+# so we only list top-level workflows here.
+#
+# Prereq: repo secret PIPELINE_FAILURE_WEBHOOK (Discord webhook URL).
+
+name: Notify Pipeline Failure
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy to VPS (Production)"
+      - "Main Workflow"
+      - "Deploy to Render (HML)"
+      - "Notify Blogfolio"
+    types: [completed]
+
+jobs:
+  notify:
+    if: ${{ contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.PIPELINE_FAILURE_WEBHOOK }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WF_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_ACTOR: ${{ github.event.workflow_run.actor.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::error::PIPELINE_FAILURE_WEBHOOK secret is missing."
+            exit 1
+          fi
+
+          SHORT_SHA="${WF_SHA:0:7}"
+          COMMIT_URL="https://github.com/${REPO}/commit/${WF_SHA}"
+
+          DESCRIPTION=$(printf '**Run:** [#%s](%s)\n**Branch:** %s\n**Commit:** [`%s`](%s)\n**Actor:** %s\n**Conclusion:** %s' \
+            "$WF_RUN_NUMBER" "$WF_URL" "$WF_BRANCH" "$SHORT_SHA" "$COMMIT_URL" "$WF_ACTOR" "$WF_CONCLUSION")
+
+          PAYLOAD=$(jq -n \
+            --arg title "❌ Pipeline failed: ${WF_NAME}" \
+            --arg description "$DESCRIPTION" \
+            '{embeds: [{title: $title, description: $description, color: 15158332}]}')
+
+          curl -sSf -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
