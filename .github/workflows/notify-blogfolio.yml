@@ -1,0 +1,139 @@
+# Drop this file into a tracked repo at .github/workflows/notify-blogfolio.yml
+# Prereqs in the tracked repo:
+#   Secret:    BLOGFOLIO_ISSUE_TOKEN  (PAT with Issues:write on hi-im-yan/personal-blog)
+#   Variables: REPO_NAME              (short slug)
+#              REPO_DESCRIPTION       (one-liner describing the repo)
+# On every push to main, this opens (or appends to) a `gh-update` issue on
+# hi-im-yan/personal-blog with filtered commits + PR title. Noise commits
+# (lockfiles, pom, *.properties, CI-only, dotfiles) are dropped.
+
+name: Notify Blogfolio
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.BLOGFOLIO_ISSUE_TOKEN }}
+      BLOGFOLIO_REPO: hi-im-yan/personal-blog
+      REPO_NAME: ${{ vars.REPO_NAME }}
+      REPO_DESCRIPTION: ${{ vars.REPO_DESCRIPTION }}
+      HEAD_SHA: ${{ github.event.head_commit.id }}
+      HEAD_MSG: ${{ github.event.head_commit.message }}
+    steps:
+      - name: Guard required configuration
+        run: |
+          if [ -z "$REPO_NAME" ] || [ -z "$REPO_DESCRIPTION" ]; then
+            echo "::error::REPO_NAME and REPO_DESCRIPTION must be set as repo-level Actions variables."
+            exit 1
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::BLOGFOLIO_ISSUE_TOKEN secret is missing."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect PR title
+        id: pr
+        run: |
+          pr_title=""
+          first_line=$(printf '%s\n' "$HEAD_MSG" | head -n 1)
+          if printf '%s' "$first_line" | grep -qE '^Merge pull request #[0-9]+ from '; then
+            # Traditional merge commit: PR title on line 3 (line 2 is blank)
+            pr_title=$(printf '%s\n' "$HEAD_MSG" | sed -n '3p')
+          elif printf '%s' "$first_line" | grep -qE ' \(#[0-9]+\)$'; then
+            # Squash-merge: strip trailing ' (#N)' from first line
+            pr_title=$(printf '%s' "$first_line" | sed -E 's/ \(#[0-9]+\)$//')
+          fi
+          {
+            echo "pr_title<<PR_EOF"
+            echo "$pr_title"
+            echo "PR_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Filter commits and render bullets
+        id: render
+        env:
+          PR_TITLE: ${{ steps.pr.outputs.pr_title }}
+        run: |
+          # GitHub's push-event payload doesn't include per-commit file lists,
+          # so we enrich each commit with its touched paths via `git show`.
+          jq '.commits' "$GITHUB_EVENT_PATH" > commits_raw.json
+
+          : > enriched.jsonl
+          while IFS= read -r commit; do
+            sha=$(printf '%s' "$commit" | jq -r '.id')
+            files_json=$(git show --pretty=format: --name-only "$sha" 2>/dev/null \
+              | sed '/^$/d' | jq -R . | jq -s .)
+            printf '%s' "$commit" \
+              | jq -c --argjson f "$files_json" '. + {files: $f}' \
+              >> enriched.jsonl
+          done < <(jq -c '.[]' commits_raw.json)
+          jq -s . enriched.jsonl > commits.json
+
+          jq -r \
+            --arg head_sha "$HEAD_SHA" \
+            --arg pr_title "$PR_TITLE" \
+            '
+              def is_ignored:
+                test("^(pom\\.xml|package-lock\\.json|yarn\\.lock|pnpm-lock\\.yaml|go\\.sum|Cargo\\.lock|\\.gitignore|\\.editorconfig|\\.dockerignore)$")
+                or test("\\.properties$")
+                or test("^\\.github/");
+              map(select(
+                (.files // []) as $files
+                | ($files | length > 0)
+                and ($files | all(is_ignored) | not)
+              ))
+              | .[]
+              | "- `" + (.id[0:7]) + "`: " + (.message | split("\n")[0])
+                + (if .id == $head_sha and $pr_title != "" then " (PR: " + $pr_title + ")" else "" end)
+            ' commits.json > new_commits.md
+
+          if [ ! -s new_commits.md ]; then
+            echo "No meaningful commits — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Rendered commits:"
+            cat new_commits.md
+          fi
+
+      - name: Upsert blogfolio issue
+        if: steps.render.outputs.skip != 'true'
+        run: |
+          TITLE="[gh-update] ${REPO_NAME} — $(date -u +%F)"
+
+          EXISTING=$(gh issue list --repo "$BLOGFOLIO_REPO" --state open \
+            --label gh-update --limit 100 --json number,title \
+            --jq '.[] | "\(.number)\t\(.title)"' \
+            | awk -F'\t' -v t="$TITLE" '$2 == t {print $1; exit}')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Appending to existing issue #$EXISTING"
+            gh issue view "$EXISTING" --repo "$BLOGFOLIO_REPO" \
+              --json body -q .body > existing.md
+            # Ensure trailing newline before appending
+            if [ -s existing.md ] && [ "$(tail -c1 existing.md | wc -l)" -eq 0 ]; then
+              echo >> existing.md
+            fi
+            cat existing.md new_commits.md > merged.md
+            gh issue edit "$EXISTING" --repo "$BLOGFOLIO_REPO" --body-file merged.md
+          else
+            echo "Creating new issue: $TITLE"
+            {
+              echo "Repository: $REPO_NAME"
+              echo "Description: $REPO_DESCRIPTION"
+              echo
+              echo "Commits:"
+              cat new_commits.md
+            } > body.md
+            gh issue create --repo "$BLOGFOLIO_REPO" \
+              --label gh-update --title "$TITLE" --body-file body.md
+          fi
