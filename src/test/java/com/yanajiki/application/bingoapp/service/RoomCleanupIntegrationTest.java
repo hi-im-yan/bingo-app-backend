@@ -1,5 +1,7 @@
 package com.yanajiki.application.bingoapp.service;
 
+import com.yanajiki.application.bingoapp.database.PlayerEntity;
+import com.yanajiki.application.bingoapp.database.PlayerRepository;
 import com.yanajiki.application.bingoapp.database.RoomEntity;
 import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.game.DrawMode;
@@ -39,11 +41,15 @@ class RoomCleanupIntegrationTest {
 	@Autowired
 	private RoomRepository roomRepository;
 
+	@Autowired
+	private PlayerRepository playerRepository;
+
 	@PersistenceContext
 	private EntityManager entityManager;
 
 	@AfterEach
 	void tearDown() {
+		playerRepository.deleteAll();
 		roomRepository.deleteAll();
 	}
 
@@ -139,6 +145,29 @@ class RoomCleanupIntegrationTest {
 			// then
 			assertThat(roomRepository.findById(expired.getId())).isEmpty();
 			assertThat(roomRepository.findById(active.getId())).isPresent();
+		}
+
+		/**
+		 * Regression: a room with joined players must be deletable by the cleanup.
+		 * Without cascade on {@code RoomEntity#players}, Postgres rejects the delete
+		 * because {@code player.room_id} still references the row.
+		 */
+		@Test
+		@Transactional
+		@DisplayName("deletes an expired room that has players")
+		void deletesExpiredRoomWithPlayers() {
+			// given
+			RoomEntity room = createRoom("Expired Room With Players");
+			playerRepository.save(PlayerEntity.create("Alice", room));
+			playerRepository.save(PlayerEntity.create("Bob", room));
+			ageRoom(room.getId(), 25);
+
+			// when
+			roomCleanupScheduler.cleanupExpiredRooms();
+
+			// then
+			assertThat(roomRepository.findById(room.getId())).isEmpty();
+			assertThat(playerRepository.findByRoomEntity(room)).isEmpty();
 		}
 
 		/**

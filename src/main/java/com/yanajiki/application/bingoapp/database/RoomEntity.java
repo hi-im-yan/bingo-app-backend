@@ -54,6 +54,9 @@ public class RoomEntity {
 	@Column(name = "number")
 	private List<Integer> drawnNumbers = new ArrayList<>();
 
+	@OneToMany(mappedBy = "roomEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<PlayerEntity> players = new ArrayList<>();
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private DrawMode drawMode;
