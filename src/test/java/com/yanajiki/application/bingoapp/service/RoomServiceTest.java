@@ -13,6 +13,7 @@ import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
 import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
 import java.util.List;
+import com.yanajiki.application.bingoapp.api.form.UpdateRoomForm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,10 @@ class RoomServiceTest {
 	/** Mocked player repository for player join and list operations. */
 	@Mock
 	private PlayerRepository playerRepository;
+
+	/** Mocked tiebreak service for checking active tiebreaker state. */
+	@Mock
+	private TiebreakService tiebreakService;
 
 	@InjectMocks
 	private RoomService roomService;
@@ -877,6 +882,286 @@ class RoomServiceTest {
 				.isInstanceOf(RoomNotFoundException.class);
 
 			verify(playerRepository, never()).findByRoomEntity(any());
+		}
+	}
+
+	// ─── resetRoom ──────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("resetRoom")
+	class ResetRoomTests {
+
+		/**
+		 * Resetting a room with drawn numbers must clear the list, save the entity,
+		 * and return the player view (no creatorHash).
+		 */
+		@Test
+		@DisplayName("success — clears drawn numbers, saves entity, returns player DTO")
+		void success_clearsDrawnNumbersAndReturnsPlayerDto() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Reset Room", null);
+			entity.addDrawnNumber(5);
+			entity.addDrawnNumber(42);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+			when(tiebreakService.hasActiveTiebreak(sessionCode)).thenReturn(false);
+			// no mapper stubs needed — drawnNumbers is cleared before the DTO is built
+
+			// when
+			RoomDTO result = roomService.resetRoom(sessionCode, creatorHash);
+
+			// then
+			assertThat(result.drawnNumbers()).isEmpty();
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * Resetting a room that does not exist must throw {@link RoomNotFoundException}.
+		 */
+		@Test
+		@DisplayName("unknown session code — throws RoomNotFoundException")
+		void unknownSession_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST9", "any-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.resetRoom("GHOST9", "any-hash"))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Resetting with a wrong creator hash must throw {@link RoomNotFoundException}
+		 * (same 404 ambiguity as delete/draw semantics).
+		 */
+		@Test
+		@DisplayName("wrong hash — throws RoomNotFoundException")
+		void wrongHash_throwsRoomNotFoundException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Hash Room", null);
+			String sessionCode = entity.getSessionCode();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, "wrong-hash"))
+				.thenReturn(Optional.empty());
+
+			// when / then
+			assertThatThrownBy(() -> roomService.resetRoom(sessionCode, "wrong-hash"))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Resetting when a tiebreak is active must throw {@link BadRequestException}
+		 * with code TIEBREAK_ALREADY_ACTIVE.
+		 */
+		@Test
+		@DisplayName("tiebreak active — throws BadRequestException")
+		void tiebreakActive_throwsBadRequestException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Tiebreak Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(tiebreakService.hasActiveTiebreak(sessionCode)).thenReturn(true);
+
+			// when / then
+			assertThatThrownBy(() -> roomService.resetRoom(sessionCode, creatorHash))
+				.isInstanceOf(BadRequestException.class)
+				.hasMessageContaining("tiebreaker");
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Resetting a room with zero drawn numbers is a valid no-op — the entity is still saved
+		 * and the player view is returned with an empty drawnNumbers list.
+		 */
+		@Test
+		@DisplayName("empty draws — no-op but still saves and returns player DTO")
+		void emptyDraws_noOpStillSavesAndReturnsDto() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Empty Reset Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+			when(tiebreakService.hasActiveTiebreak(sessionCode)).thenReturn(false);
+
+			// when
+			RoomDTO result = roomService.resetRoom(sessionCode, creatorHash);
+
+			// then
+			assertThat(result.drawnNumbers()).isEmpty();
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).save(entity);
+		}
+	}
+
+	// ─── updateRoom ─────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("updateRoom")
+	class UpdateRoomTests {
+
+		/**
+		 * Providing a non-null description updates the entity's description, saves, and
+		 * returns the player view DTO.
+		 */
+		@Test
+		@DisplayName("non-null description — entity description updated, saved, player DTO returned")
+		void nonNullDescription_updatesEntityAndReturnsPlayerDto() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Update Room", "old description");
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			UpdateRoomForm form = new UpdateRoomForm();
+			form.setDescription("new description");
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+
+			// when
+			RoomDTO result = roomService.updateRoom(sessionCode, creatorHash, form);
+
+			// then
+			assertThat(result.description()).isEqualTo("new description");
+			assertThat(result.creatorHash()).isNull();
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * Providing an empty string clears the entity's description.
+		 */
+		@Test
+		@DisplayName("empty string description — entity description cleared")
+		void emptyStringDescription_clearsEntityDescription() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Clear Desc Room", "has description");
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			UpdateRoomForm form = new UpdateRoomForm();
+			form.setDescription("");
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+
+			// when
+			RoomDTO result = roomService.updateRoom(sessionCode, creatorHash, form);
+
+			// then
+			assertThat(result.description()).isEmpty();
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * A null description field means "no change" — the entity's description is untouched.
+		 */
+		@Test
+		@DisplayName("null description — entity description unchanged")
+		void nullDescription_entityDescriptionUnchanged() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("No Change Room", "original");
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			UpdateRoomForm form = new UpdateRoomForm();
+			// form.description is null by default
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+
+			// when
+			RoomDTO result = roomService.updateRoom(sessionCode, creatorHash, form);
+
+			// then
+			assertThat(result.description()).isEqualTo("original");
+			verify(repository).save(entity);
+		}
+
+		/**
+		 * Using an unknown session code must throw {@link RoomNotFoundException}
+		 * and never call save.
+		 */
+		@Test
+		@DisplayName("unknown session — throws RoomNotFoundException")
+		void unknownSession_throwsRoomNotFoundException() {
+			// given
+			when(repository.findBySessionCodeAndCreatorHash("GHOST8", "any-hash"))
+				.thenReturn(Optional.empty());
+
+			UpdateRoomForm form = new UpdateRoomForm();
+			form.setDescription("something");
+
+			// when / then
+			assertThatThrownBy(() -> roomService.updateRoom("GHOST8", "any-hash", form))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Using a wrong creator hash must throw {@link RoomNotFoundException}
+		 * and never call save.
+		 */
+		@Test
+		@DisplayName("wrong hash — throws RoomNotFoundException")
+		void wrongHash_throwsRoomNotFoundException() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Wrong Hash Room", null);
+			String sessionCode = entity.getSessionCode();
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, "wrong-hash"))
+				.thenReturn(Optional.empty());
+
+			UpdateRoomForm form = new UpdateRoomForm();
+			form.setDescription("something");
+
+			// when / then
+			assertThatThrownBy(() -> roomService.updateRoom(sessionCode, "wrong-hash", form))
+				.isInstanceOf(RoomNotFoundException.class);
+
+			verify(repository, never()).save(any());
+		}
+
+		/**
+		 * Verifies that {@code repository.save(entity)} is called even when no field changes occur.
+		 */
+		@Test
+		@DisplayName("save is always called — even when no fields change")
+		void saveIsAlwaysCalled() {
+			// given
+			RoomEntity entity = RoomEntity.createEntityObject("Always Save Room", null);
+			String sessionCode = entity.getSessionCode();
+			String creatorHash = entity.getCreatorHash();
+
+			UpdateRoomForm form = new UpdateRoomForm(); // all null
+
+			when(repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash))
+				.thenReturn(Optional.of(entity));
+			when(repository.save(entity)).thenReturn(entity);
+
+			// when
+			roomService.updateRoom(sessionCode, creatorHash, form);
+
+			// then
+			verify(repository).save(entity);
 		}
 	}
 

@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
+import io.restassured.response.Response;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -334,6 +335,269 @@ class RoomControllerIntegrationTest {
 			.body("status", equalTo(404))
 			.body("code", equalTo("ROOM_NOT_FOUND"))
 			.body("message", notNullValue());
+	}
+
+	// ─── POST /api/v1/room/{session-code}/reset ─────────────────────────────────
+
+	/**
+	 * Integration tests for the POST /{session-code}/reset endpoint.
+	 */
+	@Nested
+	@DisplayName("POST /{session-code}/reset")
+	class ResetRoom {
+
+		/** Helper: create a room and return the full response for credential extraction. */
+		private Response createRoomForReset(String name) {
+			return given()
+				.contentType(ContentType.JSON)
+				.body("{\"name\": \"" + name + "\"}")
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.extract()
+				.response();
+		}
+
+		/**
+		 * Resetting a room with drawn numbers returns 200 and empty drawnNumbers in the response.
+		 */
+		@Test
+		@DisplayName("success — returns 200 with empty drawnNumbers and player view")
+		void success_returns200WithEmptyDrawnNumbers() {
+			// given — create room and add a number directly via DB
+			Response createResp = createRoomForReset("Reset Integration Room");
+			String sessionCode = createResp.path("sessionCode");
+			String creatorHash = createResp.path("creatorHash");
+
+			RoomEntity room = roomRepository.findBySessionCode(sessionCode).orElseThrow();
+			room.addDrawnNumber(13);
+			roomRepository.save(room);
+
+			// when / then
+			given()
+				.header("X-Creator-Hash", creatorHash)
+			.when()
+				.post("/api/v1/room/{sessionCode}/reset", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("drawnNumbers", empty())
+				.body("$", not(hasKey("creatorHash")));
+		}
+
+		/**
+		 * Resetting with a wrong creator hash must return 404 ROOM_NOT_FOUND.
+		 */
+		@Test
+		@DisplayName("wrong hash — returns 404 ROOM_NOT_FOUND")
+		void wrongHash_returns404() {
+			// given
+			Response createResp = createRoomForReset("Wrong Hash Reset Room");
+			String sessionCode = createResp.path("sessionCode");
+
+			// when / then
+			given()
+				.header("X-Creator-Hash", "wrong-hash-value")
+			.when()
+				.post("/api/v1/room/{sessionCode}/reset", sessionCode)
+			.then()
+				.statusCode(404)
+				.body("code", equalTo("ROOM_NOT_FOUND"));
+		}
+
+		/**
+		 * Resetting without the X-Creator-Hash header must return 400 (missing required header).
+		 */
+		@Test
+		@DisplayName("missing hash header — returns 400")
+		void missingHashHeader_returns400() {
+			// given
+			Response createResp = createRoomForReset("No Header Reset Room");
+			String sessionCode = createResp.path("sessionCode");
+
+			// when / then
+			given()
+			.when()
+				.post("/api/v1/room/{sessionCode}/reset", sessionCode)
+			.then()
+				.statusCode(400);
+		}
+
+		/**
+		 * Resetting an unknown session code must return 404 ROOM_NOT_FOUND.
+		 */
+		@Test
+		@DisplayName("unknown session — returns 404 ROOM_NOT_FOUND")
+		void unknownSession_returns404() {
+			// when / then
+			given()
+				.header("X-Creator-Hash", "some-hash")
+			.when()
+				.post("/api/v1/room/{sessionCode}/reset", "UNKNWN")
+			.then()
+				.statusCode(404)
+				.body("code", equalTo("ROOM_NOT_FOUND"));
+		}
+	}
+
+	// ─── PATCH /api/v1/room/{session-code} ──────────────────────────────────────
+
+	/**
+	 * Integration tests for the PATCH /{session-code} endpoint.
+	 */
+	@Nested
+	@DisplayName("PATCH /{session-code}")
+	class UpdateRoom {
+
+		/** Helper: create a room with given name and optional description. */
+		private Response createRoomForPatch(String name, String description) {
+			String body = description != null
+				? "{\"name\": \"" + name + "\", \"description\": \"" + description + "\"}"
+				: "{\"name\": \"" + name + "\"}";
+			return given()
+				.contentType(ContentType.JSON)
+				.body(body)
+			.when()
+				.post("/api/v1/room")
+			.then()
+				.statusCode(200)
+				.extract()
+				.response();
+		}
+
+		/**
+		 * Patching with a new description returns 200 with the updated description in player view.
+		 */
+		@Test
+		@DisplayName("success — updates description and returns 200 player view")
+		void success_updatesDescription() {
+			// given
+			Response createResp = createRoomForPatch("Patch Room", "old description");
+			String sessionCode = createResp.path("sessionCode");
+			String creatorHash = createResp.path("creatorHash");
+
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", creatorHash)
+				.body("{\"description\": \"new description\"}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("description", equalTo("new description"))
+				.body("$", not(hasKey("creatorHash")));
+		}
+
+		/**
+		 * Patching with an empty string description clears the description field.
+		 */
+		@Test
+		@DisplayName("empty string — clears description")
+		void emptyString_clearsDescription() {
+			// given
+			Response createResp = createRoomForPatch("Clear Desc Patch Room", "has desc");
+			String sessionCode = createResp.path("sessionCode");
+			String creatorHash = createResp.path("creatorHash");
+
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", creatorHash)
+				.body("{\"description\": \"\"}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("description", emptyString());
+		}
+
+		/**
+		 * Patching with explicit null description preserves the existing description.
+		 */
+		@Test
+		@DisplayName("null description — preserves existing description")
+		void nullDescription_preservesDescription() {
+			// given
+			Response createResp = createRoomForPatch("Preserve Desc Room", "keep this");
+			String sessionCode = createResp.path("sessionCode");
+			String creatorHash = createResp.path("creatorHash");
+
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", creatorHash)
+				.body("{\"description\": null}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(200)
+				.body("description", equalTo("keep this"));
+		}
+
+		/**
+		 * Patching with a wrong creator hash returns 404 ROOM_NOT_FOUND.
+		 */
+		@Test
+		@DisplayName("wrong hash — returns 404 ROOM_NOT_FOUND")
+		void wrongHash_returns404() {
+			// given
+			Response createResp = createRoomForPatch("Wrong Hash Patch Room", null);
+			String sessionCode = createResp.path("sessionCode");
+
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", "wrong-hash-value")
+				.body("{\"description\": \"test\"}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(404)
+				.body("code", equalTo("ROOM_NOT_FOUND"));
+		}
+
+		/**
+		 * Patching an unknown session code returns 404 ROOM_NOT_FOUND.
+		 */
+		@Test
+		@DisplayName("unknown session — returns 404 ROOM_NOT_FOUND")
+		void unknownSession_returns404() {
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", "some-hash")
+				.body("{\"description\": \"test\"}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", "UNKNWN")
+			.then()
+				.statusCode(404)
+				.body("code", equalTo("ROOM_NOT_FOUND"));
+		}
+
+		/**
+		 * Patching with a description longer than 255 characters returns 400 VALIDATION_ERROR.
+		 */
+		@Test
+		@DisplayName("oversize description — returns 400 VALIDATION_ERROR")
+		void oversizeDescription_returns400ValidationError() {
+			// given
+			Response createResp = createRoomForPatch("Oversize Desc Room", null);
+			String sessionCode = createResp.path("sessionCode");
+			String creatorHash = createResp.path("creatorHash");
+			String longDesc = "x".repeat(256);
+
+			// when / then
+			given()
+				.contentType(ContentType.JSON)
+				.header("X-Creator-Hash", creatorHash)
+				.body("{\"description\": \"" + longDesc + "\"}")
+			.when()
+				.patch("/api/v1/room/{sessionCode}", sessionCode)
+			.then()
+				.statusCode(400)
+				.body("code", equalTo("VALIDATION_ERROR"));
+		}
 	}
 
 	// ─── Draw Mode ──────────────────────────────────────────────────────────────

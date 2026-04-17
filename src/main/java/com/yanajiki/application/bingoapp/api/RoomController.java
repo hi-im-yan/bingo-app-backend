@@ -2,6 +2,7 @@ package com.yanajiki.application.bingoapp.api;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
 import com.yanajiki.application.bingoapp.api.form.RoomLookupForm;
+import com.yanajiki.application.bingoapp.api.form.UpdateRoomForm;
 import com.yanajiki.application.bingoapp.api.response.ApiResponse;
 import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
@@ -18,8 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,6 +48,7 @@ public class RoomController {
 
 	private final RoomService roomService;
 	private final QrCodeService qrCodeService;
+	private final SimpMessagingTemplate messagingTemplate;
 
 	@Operation(
 		summary = "Create a bingo room",
@@ -198,6 +202,78 @@ public class RoomController {
 		@Parameter(description = "Creator hash for authentication; must match the hash assigned at room creation", required = true)
 		@RequestHeader("X-Creator-Hash") String creatorHash) {
 		return roomService.getPlayersByRoom(sessionCode, creatorHash);
+	}
+
+	@Operation(
+		summary = "Reset drawn numbers for a room (creator only)",
+		description = "Clears all drawn numbers for the room identified by the given session code. "
+			+ "Requires the X-Creator-Hash header. Blocked while a tiebreaker is active. "
+			+ "Broadcasts the reset RoomDTO to all WebSocket subscribers on /room/{sessionCode}."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "Room reset successfully — drawnNumbers is now empty",
+			content = @Content(schema = @Schema(implementation = RoomDTO.class))
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "400",
+			description = "Active tiebreak blocks reset",
+			content = @Content(schema = @Schema(implementation = ApiResponse.class))
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "404",
+			description = "Room not found or wrong creator hash",
+			content = @Content(schema = @Schema(implementation = ApiResponse.class))
+		)
+	})
+	@PostMapping("/{session-code}/reset")
+	public RoomDTO reset(
+		@Parameter(description = "Public session code of the room", required = true)
+		@PathVariable("session-code") String sessionCode,
+		@Parameter(description = "Creator hash for authentication", required = true)
+		@RequestHeader("X-Creator-Hash") String creatorHash) {
+
+		RoomDTO dto = roomService.resetRoom(sessionCode, creatorHash);
+		messagingTemplate.convertAndSend("/room/" + sessionCode, dto);
+		return dto;
+	}
+
+	@Operation(
+		summary = "Update room info (creator only) — PATCH semantic: null/missing fields are unchanged",
+		description = "Partially updates the room's metadata. Only fields present and non-null in the request body "
+			+ "are applied. An empty string clears the field. Requires the X-Creator-Hash header. "
+			+ "Broadcasts the updated RoomDTO to all WebSocket subscribers on /room/{sessionCode}."
+	)
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "200",
+			description = "Room updated successfully",
+			content = @Content(schema = @Schema(implementation = RoomDTO.class))
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "400",
+			description = "Validation failed — e.g. description exceeds 255 characters",
+			content = @Content(schema = @Schema(implementation = ApiResponse.class))
+		),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+			responseCode = "404",
+			description = "Room not found or wrong creator hash",
+			content = @Content(schema = @Schema(implementation = ApiResponse.class))
+		)
+	})
+	@PatchMapping("/{session-code}")
+	public RoomDTO update(
+		@Parameter(description = "Public session code of the room", required = true)
+		@PathVariable("session-code") String sessionCode,
+		@Parameter(description = "Creator hash for authentication", required = true)
+		@RequestHeader("X-Creator-Hash") String creatorHash,
+		@Valid @RequestBody(required = false) UpdateRoomForm form) {
+
+		UpdateRoomForm body = form == null ? new UpdateRoomForm() : form;
+		RoomDTO dto = roomService.updateRoom(sessionCode, creatorHash, body);
+		messagingTemplate.convertAndSend("/room/" + sessionCode, dto);
+		return dto;
 	}
 
 }
