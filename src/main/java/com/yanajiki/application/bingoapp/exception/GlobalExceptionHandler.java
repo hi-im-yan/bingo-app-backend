@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -46,6 +47,14 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 				.badRequest()
 				.body(new ErrorResponse(400, ErrorCode.VALIDATION_ERROR.name(), message, fields));
+	}
+
+	@ExceptionHandler(MissingRequestHeaderException.class)
+	public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
+		int httpStatus = HttpStatus.BAD_REQUEST.value();
+		String message = "Missing required header: " + ex.getHeaderName();
+		return ResponseEntity.status(httpStatus)
+				.body(new ErrorResponse(httpStatus, ErrorCode.VALIDATION_ERROR.name(), message));
 	}
 
 	@ExceptionHandler(NoResourceFoundException.class)

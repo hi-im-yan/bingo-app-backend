@@ -118,6 +118,85 @@ X-Creator-Hash: {uuid}          # required
 
 ---
 
+### Reset Room
+
+```
+POST /api/v1/room/{session-code}/reset
+X-Creator-Hash: {uuid}          # required
+```
+
+Clears all drawn numbers for the room. Blocked while a tiebreaker is active. On success, broadcasts the updated `RoomDTO` (with empty `drawnNumbers`) to all WebSocket subscribers on `/room/{sessionCode}`.
+
+**Response (200):** Player view `RoomDTO` with empty `drawnNumbers` and `drawnLabels`.
+```json
+{
+  "name": "Friday Night Bingo",
+  "sessionCode": "A3X9K2",
+  "drawnNumbers": [],
+  "drawnLabels": [],
+  "drawMode": "MANUAL"
+}
+```
+
+**Errors:** `400 TIEBREAK_ALREADY_ACTIVE` tiebreaker is active | `404 ROOM_NOT_FOUND` room not found or wrong hash
+
+**Frontend integration:**
+- The existing `/room/{sessionCode}` STOMP subscription automatically receives the reset as a `RoomDTO` with empty `drawnNumbers` — no new topic, no new DTO type.
+- Detect the transition (non-empty → empty `drawnNumbers`) and show a "Game was reset" toast to all connected players.
+- Show a confirmation dialog on the creator's side before calling — the reset is irreversible.
+
+---
+
+### Update Room Info
+
+```
+PATCH /api/v1/room/{session-code}
+Content-Type: application/json
+X-Creator-Hash: {uuid}          # required
+```
+
+Partially updates the room's metadata. Uses PATCH semantics: absent or `null` fields are left unchanged; an empty string (`""`) clears the field. Safe to call during an active tiebreaker.
+
+On success, broadcasts the updated `RoomDTO` to all WebSocket subscribers on `/room/{sessionCode}`.
+
+**Request:**
+```json
+{
+  "description": "New description"
+}
+```
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| `description` | string | no | `null`/missing = no change; `""` = clear; otherwise update. Max 255 chars. |
+
+**TypeScript interface:**
+```typescript
+interface UpdateRoomForm {
+  description?: string; // null/missing = no change; "" = clear
+}
+```
+
+**Response (200):** Player view `RoomDTO` with updated fields.
+```json
+{
+  "name": "Friday Night Bingo",
+  "description": "New description",
+  "sessionCode": "A3X9K2",
+  "drawnNumbers": [42, 7],
+  "drawnLabels": ["N-42", "B-7"],
+  "drawMode": "MANUAL"
+}
+```
+
+**Errors:** `400 VALIDATION_ERROR` description > 255 chars | `404 ROOM_NOT_FOUND` room not found or wrong hash
+
+**Frontend integration:**
+- The same `/room/{sessionCode}` STOMP subscription receives the updated `RoomDTO` — frontend re-renders the description panel.
+- Missing `Content-Type: application/json` body is treated as a no-op update (entity is still saved/TTL reset).
+
+---
+
 ### List Players in Room
 
 ```
@@ -668,6 +747,20 @@ Every error the backend can return, organized by endpoint. Use the **message pat
 | Status | Code | Message | Cause | Suggested UX |
 |--------|------|---------|-------|-------------|
 | 404 | `ROOM_NOT_FOUND` | `not found` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to delete it." |
+
+### REST — Reset Room (`POST /api/v1/room/{session-code}/reset`)
+
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 400 | `TIEBREAK_ALREADY_ACTIVE` | `Cannot reset the room while a tiebreaker is in progress` | Active tiebreaker is running | "Finish the tiebreaker before resetting the room." |
+| 404 | `ROOM_NOT_FOUND` | `Room not found.` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to reset it." |
+
+### REST — Update Room Info (`PATCH /api/v1/room/{session-code}`)
+
+| Status | Code | Message | Cause | Suggested UX |
+|--------|------|---------|-------|-------------|
+| 400 | `VALIDATION_ERROR` | `description: size must be between 0 and 255` | Description exceeds 255 characters | Inline field validation — "Description is too long" |
+| 404 | `ROOM_NOT_FOUND` | `Room not found.` | Session code doesn't exist or creator hash doesn't match | "Room not found or you don't have permission to update it." |
 
 ### REST — List Players (`GET /api/v1/room/{session-code}/players`)
 

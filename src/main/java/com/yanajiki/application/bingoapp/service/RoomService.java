@@ -1,6 +1,7 @@
 package com.yanajiki.application.bingoapp.service;
 
 import com.yanajiki.application.bingoapp.api.form.CreateRoomForm;
+import com.yanajiki.application.bingoapp.api.form.UpdateRoomForm;
 import com.yanajiki.application.bingoapp.api.response.NumberCorrectionDTO;
 import com.yanajiki.application.bingoapp.api.response.PlayerDTO;
 import com.yanajiki.application.bingoapp.api.response.RoomDTO;
@@ -47,6 +48,7 @@ public class RoomService {
 	private final RoomRepository repository;
 	private final NumberLabelMapper numberLabelMapper;
 	private final PlayerRepository playerRepository;
+	private final TiebreakService tiebreakService;
 
 	/**
 	 * Creates a new bingo room with the given form data.
@@ -148,6 +150,43 @@ public class RoomService {
 
 		repository.delete(entity);
 		log.info("Room '{}' deleted successfully", sessionCode);
+	}
+
+	/**
+	 * Resets the drawn numbers for a room, authenticated by creator hash.
+	 * <p>
+	 * Validates creator ownership via session code and hash, then checks that no
+	 * tiebreaker is currently active. On success, the room's drawn number list is
+	 * cleared and the entity is persisted. Saving the entity also resets the TTL
+	 * via {@code @UpdateTimestamp}.
+	 * </p>
+	 * <p>
+	 * Resetting a room with zero drawn numbers is a valid no-op — the entity is still
+	 * saved and the player view is returned.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @param creatorHash the creator's authentication hash
+	 * @return a {@link RoomDTO} in player view (without {@code creatorHash}) with empty {@code drawnNumbers}
+	 * @throws RoomNotFoundException if no room matches the given session code and creator hash
+	 * @throws BadRequestException   if a tiebreaker is currently active for the room
+	 */
+	public RoomDTO resetRoom(String sessionCode, String creatorHash) {
+		log.info("Resetting drawn numbers in room '{}'", sessionCode);
+
+		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found."));
+
+		if (tiebreakService.hasActiveTiebreak(sessionCode)) {
+			throw new BadRequestException(ErrorCode.TIEBREAK_ALREADY_ACTIVE,
+				"Cannot reset the room while a tiebreaker is in progress");
+		}
+
+		entity.getDrawnNumbers().clear();
+		repository.save(entity);
+
+		log.info("Room '{}' reset — drawn numbers cleared", sessionCode);
+		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
 	}
 
 	/**
@@ -320,6 +359,41 @@ public class RoomService {
 		return playerRepository.findByRoomEntity(room).stream()
 			.map(PlayerDTO::fromEntity)
 			.toList();
+	}
+
+	/**
+	 * Partially updates a room's metadata, authenticated by creator hash.
+	 * <p>
+	 * Applies PATCH semantics: a {@code null} field in the form means "no change";
+	 * an empty string clears the target field; any other value replaces it.
+	 * The entity is always saved regardless of whether any field actually changed,
+	 * which also resets the TTL via {@code @UpdateTimestamp}.
+	 * </p>
+	 * <p>
+	 * Unlike {@link #resetRoom}, this method does not check tiebreaker state —
+	 * description edits are safe during an active tiebreak.
+	 * </p>
+	 *
+	 * @param sessionCode the public session code of the room
+	 * @param creatorHash the creator's authentication hash
+	 * @param form        the partial update form; null-valued fields are ignored (PATCH semantic)
+	 * @return a {@link RoomDTO} in player view (without {@code creatorHash}) with updated fields
+	 * @throws RoomNotFoundException if no room matches the given session code and creator hash
+	 */
+	public RoomDTO updateRoom(String sessionCode, String creatorHash, UpdateRoomForm form) {
+		log.info("Updating room '{}'", sessionCode);
+
+		RoomEntity entity = repository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
+			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found."));
+
+		if (form.getDescription() != null) {
+			entity.setDescription(form.getDescription());
+		}
+
+		repository.save(entity);
+		log.info("Room '{}' updated", sessionCode);
+
+		return RoomDTO.fromEntityToPlayer(entity, numberLabelMapper);
 	}
 
 	/**

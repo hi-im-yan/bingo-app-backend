@@ -48,6 +48,8 @@ com.yanajiki.application.bingoapp/
 | POST | /api/v1/room/lookup | Bulk lookup rooms by creatorHash list (creator view, unknown hashes skipped) | Hash list in body |
 | GET | /api/v1/room/{session-code} | Get room | X-Creator-Hash (optional, determines view) |
 | DELETE | /api/v1/room/{session-code} | Delete room | X-Creator-Hash (required) |
+| POST | /api/v1/room/{session-code}/reset | Reset drawn numbers (blocks during active tiebreak) | X-Creator-Hash (required) |
+| PATCH | /api/v1/room/{session-code} | Update room info (description only) | X-Creator-Hash (required) |
 | GET | /api/v1/room/{session-code}/players | List players in room | X-Creator-Hash (required) |
 | POST | /api/v1/feedback | Submit feedback message (async Discord notification) | None |
 | WS | /bingo-connect → /app/add-number | Manual draw (MANUAL rooms only) | creatorHash in payload |
