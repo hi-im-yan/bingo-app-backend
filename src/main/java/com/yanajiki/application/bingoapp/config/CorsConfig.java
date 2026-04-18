@@ -37,7 +37,7 @@ public class CorsConfig {
 			public void addCorsMappings(CorsRegistry registry) {
 				registry.addMapping("/**")
 					.allowedOrigins(allowedOrigins)
-					.allowedMethods("GET", "POST", "DELETE", "OPTIONS")
+					.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 					.allowedHeaders("*")
 					.allowCredentials(false);
 			}
