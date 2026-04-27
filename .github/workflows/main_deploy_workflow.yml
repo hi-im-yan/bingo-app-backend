@@ -1,4 +1,4 @@
-name: Deploy to VPS (Production)
+name: Deploy to VPS (Dev)
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          BRANCH="deploy/bingo-backend-${{ github.run_number }}"
+          BRANCH="deploy/bingo-backend-dev-${{ github.run_number }}"
           IMAGE_TAG="${{ github.run_number }}"
           REPO="hi-im-yan/vps-infra"
 
@@ -53,21 +53,23 @@ jobs:
 
           git checkout -b "$BRANCH"
 
-          sed -i "s|bingoapp-backend:[^ ]*|bingoapp-backend:${IMAGE_TAG}|" docker-compose.yml
+          # Bump only the bingo-backend-dev service's image tag.
+          # Range is scoped from the service header to its depends_on block to avoid touching prod.
+          sed -i "/^  bingo-backend-dev:/,/^    depends_on:/ s|bingoapp-backend:[^ ]*|bingoapp-backend:${IMAGE_TAG}|" docker-compose.yml
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docker-compose.yml
-          git commit -m "deploy: bump bingo-backend to build #${IMAGE_TAG}"
+          git commit -m "deploy: bump bingo-backend-dev to build #${IMAGE_TAG}"
           git push origin "$BRANCH"
 
           PR_URL=$(gh pr create \
             --repo "$REPO" \
             --base main \
             --head "$BRANCH" \
-            --title "deploy: bingo-backend #${IMAGE_TAG}" \
+            --title "deploy: bingo-backend-dev #${IMAGE_TAG}" \
             --body "$(cat <<EOF
-          ## Bingo Backend — Build #${IMAGE_TAG}
+          ## Bingo Backend (Dev) — Build #${IMAGE_TAG}
 
           ### Changes
           ${{ steps.changelog.outputs.log }}
@@ -76,7 +78,8 @@ jobs:
           \`${{ secrets.DOCKER_HUB_REPOSITORY }}/bingoapp-backend:${IMAGE_TAG}\`
 
           ---
-          Merge this PR to deploy to VPS.
+          Merge this PR to deploy to **dev** (\`dev.api.gritabingo.com.br\`).
+          To promote this build to **prod**, open a separate PR bumping the \`bingo-backend\` service tag.
           EOF
           )")
 
@@ -91,7 +94,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           PAYLOAD=$(jq -n \
-            --arg title "🚀 Bingo Backend #${RUN_NUMBER} ready to deploy" \
+            --arg title "🚀 Bingo Backend (Dev) #${RUN_NUMBER} ready to deploy" \
             --arg description "### Changes"$'\n'"${CHANGELOG}"$'\n\n'"[View PR](${PR_URL})" \
             '{embeds: [{title: $title, description: $description, color: 5814783}]}')
           curl -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
