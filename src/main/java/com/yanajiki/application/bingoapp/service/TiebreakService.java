@@ -6,7 +6,6 @@ import com.yanajiki.application.bingoapp.database.RoomRepository;
 import com.yanajiki.application.bingoapp.exception.BadRequestException;
 import com.yanajiki.application.bingoapp.exception.ErrorCode;
 import com.yanajiki.application.bingoapp.exception.RoomNotFoundException;
-import com.yanajiki.application.bingoapp.game.DrawMode;
 import com.yanajiki.application.bingoapp.game.NumberLabelMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +44,7 @@ public class TiebreakService {
 	/**
 	 * Starts a tiebreaker for the given room.
 	 * <p>
-	 * Validates that the room exists, is in AUTOMATIC mode, the player count is within range,
+	 * Validates that the room exists, the player count is within range,
 	 * and no tiebreaker is already active for this room.
 	 * </p>
 	 *
@@ -53,19 +52,14 @@ public class TiebreakService {
 	 * @param creatorHash the creator's authentication hash
 	 * @param playerCount number of contestants (must be at least 2 and not exceed available numbers)
 	 * @return a {@link TiebreakDTO} with status {@code STARTED}
-	 * @throws RoomNotFoundException    if the room is not found or hash is invalid
-	 * @throws IllegalArgumentException if the room is not AUTOMATIC or player count is out of range
-	 * @throws IllegalStateException    if a tiebreaker is already active for this room
+	 * @throws RoomNotFoundException if the room is not found or hash is invalid
+	 * @throws BadRequestException   if player count is out of range or a tiebreaker is already active
 	 */
 	public TiebreakDTO startTiebreak(String sessionCode, String creatorHash, int playerCount) {
 		log.info("Starting tiebreaker for room '{}' with {} players", sessionCode, playerCount);
 
 		RoomEntity entity = roomRepository.findBySessionCodeAndCreatorHash(sessionCode, creatorHash)
 			.orElseThrow(() -> new RoomNotFoundException(ErrorCode.ROOM_NOT_FOUND, "Room not found"));
-
-		if (entity.getDrawMode() != DrawMode.AUTOMATIC) {
-			throw new BadRequestException(ErrorCode.DRAW_MODE_MISMATCH, "Tiebreaker is only available for automatic draw mode rooms");
-		}
 
 		if (playerCount < MIN_PLAYERS) {
 			throw new BadRequestException(ErrorCode.TIEBREAK_INVALID_PLAYER_COUNT,

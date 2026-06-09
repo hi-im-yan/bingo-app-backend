@@ -106,16 +106,24 @@ class TiebreakServiceTest {
 		}
 
 		@Test
-		@DisplayName("wrong mode (MANUAL) — throws BadRequestException")
-		void manualRoom_throwsIllegalArgumentException() {
+		@DisplayName("MANUAL room — starts tiebreaker successfully")
+		void manualRoom_startsTiebreaker() {
+			// given
 			RoomEntity entity = RoomEntity.createEntityObject("Manual Room", null);
 			when(roomRepository.findBySessionCodeAndCreatorHash(entity.getSessionCode(), entity.getCreatorHash()))
 				.thenReturn(Optional.of(entity));
+			stubMapperRange();
 
-			assertThatThrownBy(() -> tiebreakService.startTiebreak(
-				entity.getSessionCode(), entity.getCreatorHash(), 3))
-				.isInstanceOf(BadRequestException.class)
-				.hasMessageContaining("automatic");
+			// when
+			TiebreakDTO dto = tiebreakService.startTiebreak(
+				entity.getSessionCode(), entity.getCreatorHash(), 3);
+
+			// then
+			assertThat(dto.status()).isEqualTo("STARTED");
+			assertThat(dto.playerCount()).isEqualTo(3);
+			assertThat(dto.draws()).isEmpty();
+			assertThat(dto.winnerSlot()).isNull();
+			assertThat(tiebreakService.hasActiveTiebreak(entity.getSessionCode())).isTrue();
 		}
 
 		@Test

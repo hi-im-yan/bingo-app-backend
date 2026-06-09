@@ -8,9 +8,9 @@
 
 | ID | Task | Status | Blocked By | Assignee |
 |----|------|--------|------------|----------|
-| 001 | Backend — remove AUTOMATIC-only gate in `startTiebreak` + flip test | ready | — | Implementer |
-| 002 | Frontend — render `AdminTiebreakPanel` in MANUAL branch + test | ready | — | Implementer |
-| 003 | Docs — backend CLAUDE.md + frontend FRONTEND_API.md | blocked | 001, 002 | Implementer |
+| 001 | Backend — remove AUTOMATIC-only gate in `startTiebreak` + flip test | done | — | Implementer |
+| 002 | Frontend — render `AdminTiebreakPanel` in MANUAL branch + test | done | — | Implementer |
+| 003 | Docs — backend CLAUDE.md + frontend FRONTEND_API.md | done | — | Orchestrator |
 
 ## Decisions
 - Tiebreaker restriction is product-level, not technical. The tiebreak is its own

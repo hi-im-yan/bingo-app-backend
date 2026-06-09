@@ -37,7 +37,7 @@ com.yanajiki.application.bingoapp/
 - **creatorHash** (UUID) = privileged identity; **sessionCode** (6-char) = public room ID. Two DTO views hide creatorHash from players via @JsonInclude(NON_NULL).
 - **DrawMode** (MANUAL/AUTOMATIC) is per-room and enforced at the endpoint level.
 - **PlayerEntity** has @ManyToOne to RoomEntity. Unique constraint on (name, room_id). Player list is creator-only (REST), join broadcasts to `/room/{sessionCode}/players` (WS).
-- **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count minimum 2, capped by available (undrawn) numbers. AUTOMATIC rooms only.
+- **TiebreakService** holds in-memory `ConcurrentHashMap<String, TiebreakState>` for active tiebreakers. Multiple sequential tiebreakers per game, one active at a time per room. Numbers drawn from undrawn pool (ephemeral, not added to room's drawnNumbers). State auto-cleared after FINISHED. Player count minimum 2, capped by available (undrawn) numbers. Available in both MANUAL and AUTOMATIC rooms.
 - **FeedbackMessageEntity** stores user feedback. Name + content required, email + phone optional (anonymous submissions allowed). `DiscordNotifier` sends async fire-and-forget webhook notification on submit. Webhook URL via `app.discord.webhook-url` property (blank = disabled).
 - **RoomCleanupScheduler** runs on a fixed interval (default 1h, configurable via `room.cleanup.interval-ms`). Deletes rooms whose `updateDateTime` is older than the TTL (default 24h, configurable via `room.cleanup.ttl-hours`). Any entity save (draw, player join, etc.) resets the TTL via `@UpdateTimestamp`. Timestamps use `Instant` (UTC). No API endpoints — fully internal.
 
@@ -55,8 +55,8 @@ com.yanajiki.application.bingoapp/
 | WS | /bingo-connect → /app/add-number | Manual draw (MANUAL rooms only) | creatorHash in payload |
 | WS | /bingo-connect → /app/draw-number | Automatic draw (AUTOMATIC rooms only) | creatorHash in payload |
 | WS | /bingo-connect → /app/join-room | Player joins a room | sessionCode + playerName in payload |
-| WS | /bingo-connect → /app/start-tiebreak | Start tiebreaker (AUTOMATIC only) | creatorHash + playerCount in payload |
-| WS | /bingo-connect → /app/tiebreak-draw | Draw for tiebreaker slot (AUTOMATIC only) | creatorHash + slot in payload |
+| WS | /bingo-connect → /app/start-tiebreak | Start tiebreaker | creatorHash + playerCount in payload |
+| WS | /bingo-connect → /app/tiebreak-draw | Draw for tiebreaker slot | creatorHash + slot in payload |
 
 Draw WS endpoints broadcast updated RoomDTO (player view) to /room/{sessionCode}.
 Join WS endpoint broadcasts PlayerDTO to /room/{sessionCode}/players.

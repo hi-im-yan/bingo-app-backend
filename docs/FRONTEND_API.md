@@ -456,7 +456,7 @@ Receives a `PlayerDTO` every time a new player joins the room.
 Destination: /room/{sessionCode}/tiebreak
 ```
 
-Receives a `TiebreakDTO` on every tiebreaker event (start, each slot draw, finish). Only applicable to AUTOMATIC rooms. A room can have multiple sequential tiebreakers during a game, but only one active at a time.
+Receives a `TiebreakDTO` on every tiebreaker event (start, each slot draw, finish). Available in both MANUAL and AUTOMATIC rooms. A room can have multiple sequential tiebreakers during a game, but only one active at a time.
 
 ```json
 {
@@ -608,7 +608,7 @@ Destination: /app/correct-number
 
 ---
 
-### Send — Start Tiebreaker (AUTOMATIC rooms only)
+### Send — Start Tiebreaker
 
 ```
 Destination: /app/start-tiebreak
@@ -631,11 +631,11 @@ Destination: /app/start-tiebreak
 
 **Result:** Creates a new tiebreaker session. Broadcasts `TiebreakDTO` with status `STARTED` to `/room/{sessionCode}/tiebreak`.
 
-**Errors:** `404` room not found | `400` not automatic mode, player count out of range | `409` tiebreaker already active
+**Errors:** `404` room not found | `400` player count out of range | `409` tiebreaker already active
 
 ---
 
-### Send — Tiebreaker Draw (AUTOMATIC rooms only)
+### Send — Tiebreaker Draw
 
 ```
 Destination: /app/tiebreak-draw
